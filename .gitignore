@@ -216,3 +216,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+
+# Enterprise AI Copilot
+backend/.venv/
+backend/.env
+.vscode/
+.DS_Store
