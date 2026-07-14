@@ -1,4 +1,4 @@
-const API_URL = "http://127.0.0.1:8001/chat";
+const API_URL = `${import.meta.env.VITE_API_URL}/chat`;
 
 export async function sendMessage(message) {
   const response = await fetch(API_URL, {
@@ -6,14 +6,12 @@ export async function sendMessage(message) {
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      message,
-    }),
+    body: JSON.stringify({ message }),
   });
 
   if (!response.ok) {
     throw new Error("Failed to communicate with backend");
   }
 
-  return await response.json();
+  return response.json();
 }
