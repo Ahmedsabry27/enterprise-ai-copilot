@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from mangum import Mangum
 
 from app.api.chat import router as chat_router
 
@@ -8,13 +9,10 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Allow the React frontend to communicate with the backend
+# TEMPORARY: Allow all origins for debugging
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origin_regex=".*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -36,3 +34,7 @@ def health():
     return {
         "status": "healthy"
     }
+
+
+# Lambda handler (safe to keep even if you're currently running on ECS)
+handler = Mangum(app)
