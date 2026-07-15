@@ -11,39 +11,48 @@ function App() {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // Returns current time like 10:45 AM
+  const getTimestamp = () =>
+    new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
   async function handleSend(userMessage) {
-    // Add the user's message immediately
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: "user",
-        text: userMessage,
-      },
-    ]);
+    if (!userMessage.trim()) return;
+
+    // User message
+    const newUserMessage = {
+      role: "user",
+      text: userMessage,
+      timestamp: getTimestamp(),
+    };
+
+    setMessages((prev) => [...prev, newUserMessage]);
 
     setLoading(true);
 
     try {
       const result = await sendMessage(userMessage);
 
-      // Add the AI response
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          text: result.response,
-        },
-      ]);
+      // AI response
+      const assistantMessage = {
+        role: "assistant",
+        text: result.response,
+        timestamp: getTimestamp(),
+      };
+
+      setMessages((prev) => [...prev, assistantMessage]);
     } catch (error) {
       console.error(error);
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          text: "Unable to contact the AI service.",
-        },
-      ]);
+      const errorMessage = {
+        role: "assistant",
+        text: "❌ Unable to contact the AI service.",
+        timestamp: getTimestamp(),
+      };
+
+      setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setLoading(false);
     }
@@ -55,7 +64,7 @@ function App() {
         height: "100vh",
         display: "flex",
         flexDirection: "column",
-        backgroundColor: "#f5f5f5",
+        bgcolor: "#F5F7FA",
       }}
     >
       <Header />

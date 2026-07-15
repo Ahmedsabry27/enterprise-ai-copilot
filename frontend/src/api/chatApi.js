@@ -1,5 +1,7 @@
 const API_URL = `${import.meta.env.VITE_API_URL}/chat`;
 
+console.log("API URL:", API_URL);
+
 export async function sendMessage(message) {
   const response = await fetch(API_URL, {
     method: "POST",
