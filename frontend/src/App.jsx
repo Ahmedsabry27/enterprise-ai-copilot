@@ -11,6 +11,9 @@ function App() {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // Stores the last OpenAI response ID to continue the conversation
+  const [responseId, setResponseId] = useState(null);
+
   const getTimestamp = () =>
     new Date().toLocaleTimeString([], {
       hour: "2-digit",
@@ -32,7 +35,12 @@ function App() {
     setLoading(true);
 
     try {
-      const result = await sendMessage(userMessage);
+      const result = await sendMessage(
+        userMessage,
+        responseId
+      );
+
+      setResponseId(result.response_id);
 
       const assistantMessage = {
         id: crypto.randomUUID(),
@@ -75,9 +83,7 @@ function App() {
         onPromptClick={handleSend}
       />
 
-      <ChatInput
-        onSend={handleSend}
-      />
+      <ChatInput onSend={handleSend} />
     </Box>
   );
 }

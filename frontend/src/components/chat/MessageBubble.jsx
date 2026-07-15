@@ -37,7 +37,7 @@ function MessageBubble({
 
           p: 3,
 
-          borderRadius: 4,
+          borderRadius: 1,
 
           bgcolor: isUser ? "primary.main" : "#fff",
 
