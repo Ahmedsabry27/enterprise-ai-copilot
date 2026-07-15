@@ -2,7 +2,6 @@ import { useEffect, useRef } from "react";
 import {
   Box,
   Paper,
-  Stack,
   Typography,
   Chip,
 } from "@mui/material";
@@ -40,7 +39,8 @@ function ChatWindow({
         flex: 1,
         overflowY: "auto",
         px: 3,
-        py: 4,
+        pt: 4,
+        pb: 18,
         bgcolor: "#F7F9FC",
       }}
     >
@@ -48,14 +48,16 @@ function ChatWindow({
         <Paper
           elevation={0}
           sx={{
-            maxWidth: 800,
+            width: "100%",
+            maxWidth: 900,
             mx: "auto",
             mt: 8,
-            p: 5,
+            p: 6,
             borderRadius: 4,
             textAlign: "center",
             bgcolor: "#fff",
             border: "1px solid rgba(0,0,0,.08)",
+            boxShadow: "0 8px 30px rgba(0,0,0,.05)",
           }}
         >
           <SmartToyIcon
@@ -76,25 +78,29 @@ function ChatWindow({
           <Typography
             sx={{
               mt: 2,
+              mb: 4,
               color: "text.secondary",
-              maxWidth: 550,
+              maxWidth: 600,
               mx: "auto",
+              lineHeight: 1.7,
             }}
           >
-            Your Enterprise AI Copilot can help with
-            Agile, Product Management, SAP,
-            AWS, AEM, AI, Software Engineering,
-            Architecture and much more.
+            Your Enterprise AI Copilot can help with Agile,
+            Product Management, SAP, AWS, AEM, AI,
+            Software Engineering, Architecture and much more.
           </Typography>
 
-          <Stack
-            direction="row"
-            spacing={1.5}
-            justifyContent="center"
-            flexWrap="wrap"
+          {/* Suggested Prompts */}
+          <Box
             sx={{
-              mt: 5,
-              gap: 1.5,
+              display: "flex",
+              flexWrap: "wrap",
+              justifyContent: "center",
+              alignItems: "center",
+              gap: 2,
+              width: "100%",
+              maxWidth: 700,
+              mx: "auto",
             }}
           >
             {suggestions.map((prompt) => (
@@ -104,12 +110,24 @@ function ChatWindow({
                 clickable
                 color="primary"
                 variant="outlined"
-                onClick={() =>
-                  onPromptClick?.(prompt)
-                }
+                onClick={() => onPromptClick?.(prompt)}
+                sx={{
+                  cursor: "pointer",
+                  fontWeight: 500,
+                  px: 1,
+                  py: 2.5,
+                  transition: "all .25s ease",
+
+                  "&:hover": {
+                    bgcolor: "#1976d2",
+                    color: "#fff",
+                    transform: "translateY(-2px)",
+                    boxShadow: "0 6px 18px rgba(25,118,210,.25)",
+                  },
+                }}
               />
             ))}
-          </Stack>
+          </Box>
         </Paper>
       ) : (
         <MessageList messages={messages} />

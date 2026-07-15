@@ -11,7 +11,6 @@ function App() {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Returns current time like 10:45 AM
   const getTimestamp = () =>
     new Date().toLocaleTimeString([], {
       hour: "2-digit",
@@ -21,8 +20,8 @@ function App() {
   async function handleSend(userMessage) {
     if (!userMessage.trim()) return;
 
-    // User message
     const newUserMessage = {
+      id: crypto.randomUUID(),
       role: "user",
       text: userMessage,
       timestamp: getTimestamp(),
@@ -35,8 +34,8 @@ function App() {
     try {
       const result = await sendMessage(userMessage);
 
-      // AI response
       const assistantMessage = {
+        id: crypto.randomUUID(),
         role: "assistant",
         text: result.response,
         timestamp: getTimestamp(),
@@ -47,6 +46,7 @@ function App() {
       console.error(error);
 
       const errorMessage = {
+        id: crypto.randomUUID(),
         role: "assistant",
         text: "❌ Unable to contact the AI service.",
         timestamp: getTimestamp(),
@@ -72,6 +72,7 @@ function App() {
       <ChatWindow
         messages={messages}
         loading={loading}
+        onPromptClick={handleSend}
       />
 
       <ChatInput
