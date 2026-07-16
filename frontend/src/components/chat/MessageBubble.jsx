@@ -13,23 +13,30 @@ function MessageBubble({
   role,
   text,
   timestamp,
+  streaming = false,
 }) {
+
   const isUser = role === "user";
 
   return (
+
     <Box
       sx={{
         display: "flex",
-        justifyContent: isUser ? "flex-end" : "flex-start",
+        justifyContent: isUser
+          ? "flex-end"
+          : "flex-start",
         mb: 3,
         px: 2,
       }}
     >
+
       <Paper
         elevation={0}
         className="message-paper"
         sx={{
           width: "fit-content",
+
           maxWidth: {
             xs: "95%",
             md: "78%",
@@ -39,9 +46,13 @@ function MessageBubble({
 
           borderRadius: 1,
 
-          bgcolor: isUser ? "primary.main" : "#fff",
+          bgcolor: isUser
+            ? "primary.main"
+            : "#fff",
 
-          color: isUser ? "#fff" : "#222",
+          color: isUser
+            ? "#fff"
+            : "#222",
 
           border: isUser
             ? "none"
@@ -65,8 +76,10 @@ function MessageBubble({
           "&:hover .copy-btn": {
             opacity: 1,
           },
+
         }}
       >
+
         <MessageHeader
           isUser={isUser}
           timestamp={timestamp}
@@ -132,7 +145,6 @@ function MessageBubble({
               width: "100%",
               borderCollapse: "collapse",
               my: 3,
-              overflow: "hidden",
             },
 
             "& thead": {
@@ -165,7 +177,9 @@ function MessageBubble({
                 ? "rgba(255,255,255,.18)"
                 : "#F5F5F5",
 
-              color: isUser ? "#fff" : "#C2185B",
+              color: isUser
+                ? "#fff"
+                : "#C2185B",
 
               padding: "3px 7px",
 
@@ -176,29 +190,34 @@ function MessageBubble({
 
               fontSize: 14,
             },
+
           }}
         >
+
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
+
               code({
-                inline,
                 className,
                 children,
-                ...props
               }) {
+
                 const match =
                   /language-(\w+)/.exec(
                     className || ""
                   );
 
-                if (!inline && match) {
-                  const code = String(children).replace(
-                    /\n$/,
-                    ""
-                  );
+                if (match) {
+
+                  const code =
+                    String(children).replace(
+                      /\n$/,
+                      ""
+                    );
 
                   return (
+
                     <Box
                       sx={{
                         my: 3,
@@ -208,13 +227,13 @@ function MessageBubble({
                           "1px solid rgba(0,0,0,.08)",
                       }}
                     >
+
                       <Box
                         sx={{
                           bgcolor: "#2D2D2D",
                           color: "#fff",
 
                           px: 2,
-
                           py: 1,
 
                           display: "flex",
@@ -222,21 +241,29 @@ function MessageBubble({
                           justifyContent:
                             "space-between",
 
-                          alignItems: "center",
+                          alignItems:
+                            "center",
                         }}
                       >
+
                         <Typography
                           variant="caption"
                           sx={{
-                            textTransform: "uppercase",
+                            textTransform:
+                              "uppercase",
+
                             fontWeight: 700,
+
                             letterSpacing: 1,
                           }}
                         >
                           {match[1]}
                         </Typography>
 
-                        <CopyButton text={code} />
+                        <CopyButton
+                          text={code}
+                        />
+
                       </Box>
 
                       <SyntaxHighlighter
@@ -249,31 +276,80 @@ function MessageBubble({
                           padding: 20,
                           fontSize: 14,
                         }}
-                        {...props}
                       >
                         {code}
                       </SyntaxHighlighter>
+
                     </Box>
+
                   );
+
                 }
 
                 return (
-                  <code
-                    className={className}
-                    {...props}
-                  >
+                  <code className={className}>
                     {children}
                   </code>
                 );
+
               },
+
             }}
           >
             {text}
           </ReactMarkdown>
+
+          {streaming && !isUser && (
+
+            <Box
+              component="span"
+              sx={{
+                display: "inline-block",
+
+                width: 8,
+
+                height: "1.2em",
+
+                ml: 0.5,
+
+                bgcolor: "primary.main",
+
+                borderRadius: "2px",
+
+                verticalAlign: "bottom",
+
+                animation:
+                  "cursorBlink 1s infinite",
+
+                "@keyframes cursorBlink": {
+
+                  "0%": {
+                    opacity: 1,
+                  },
+
+                  "50%": {
+                    opacity: 0,
+                  },
+
+                  "100%": {
+                    opacity: 1,
+                  },
+
+                },
+
+              }}
+            />
+
+          )}
+
         </Box>
+
       </Paper>
+
     </Box>
+
   );
+
 }
 
 export default MessageBubble;

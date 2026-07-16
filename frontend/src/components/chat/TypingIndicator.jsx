@@ -1,4 +1,5 @@
-import { Box, CircularProgress, Typography } from "@mui/material";
+import { Box, Typography } from "@mui/material";
+import SmartToyIcon from "@mui/icons-material/SmartToy";
 
 function TypingIndicator() {
   return (
@@ -7,12 +8,28 @@ function TypingIndicator() {
         display: "flex",
         alignItems: "center",
         gap: 2,
-        p: 2,
+        px: 3,
+        py: 2,
       }}
     >
-      <CircularProgress size={20} />
+      <SmartToyIcon
+        color="primary"
+        sx={{
+          animation: "pulse 1.4s infinite",
+          "@keyframes pulse": {
+            "0%": { opacity: 0.4 },
+            "50%": { opacity: 1 },
+            "100%": { opacity: 0.4 },
+          },
+        }}
+      />
 
-      <Typography>
+      <Typography
+        color="text.secondary"
+        sx={{
+          fontStyle: "italic",
+        }}
+      >
         Enterprise AI Copilot is thinking...
       </Typography>
     </Box>

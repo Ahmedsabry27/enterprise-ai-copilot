@@ -1,11 +1,12 @@
-from typing import Optional
+from uuid import UUID
 
 from pydantic import BaseModel
 
 
 class ChatRequest(BaseModel):
     message: str
-    previous_response_id: Optional[str] = None
+    conversation_id: UUID | None = None
+    previous_response_id: str | None = None
 
 
 class ChatResponse(BaseModel):

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+
 import {
   Box,
   Paper,
@@ -25,18 +26,26 @@ function ChatWindow({
   loading,
   onPromptClick,
 }) {
+
   const bottomRef = useRef(null);
 
   useEffect(() => {
+
     bottomRef.current?.scrollIntoView({
       behavior: "smooth",
     });
+
   }, [messages, loading]);
 
+  const isEmpty =
+    messages.length === 0;
+
   return (
+
     <Box
       sx={{
         flex: 1,
+        minHeight: 0,
         overflowY: "auto",
         px: 3,
         pt: 4,
@@ -44,7 +53,9 @@ function ChatWindow({
         bgcolor: "#F7F9FC",
       }}
     >
-      {messages.length === 0 ? (
+
+      {isEmpty ? (
+
         <Paper
           elevation={0}
           sx={{
@@ -57,87 +68,122 @@ function ChatWindow({
             textAlign: "center",
             bgcolor: "#fff",
             border: "1px solid rgba(0,0,0,.08)",
-            boxShadow: "0 8px 30px rgba(0,0,0,.05)",
+            boxShadow:
+              "0 8px 30px rgba(0,0,0,.05)",
           }}
         >
+
           <SmartToyIcon
             sx={{
               fontSize: 70,
-              color: "#1976d2",
+              color: "primary.main",
               mb: 2,
             }}
           />
 
           <Typography
             variant="h4"
-            fontWeight={700}
+            sx={{
+              fontWeight: 700,
+            }}
           >
-            Welcome Ahmed 👋
+            Enterprise AI Copilot
           </Typography>
 
           <Typography
             sx={{
               mt: 2,
-              mb: 4,
+              mb: 5,
               color: "text.secondary",
-              maxWidth: 600,
+              maxWidth: 650,
               mx: "auto",
-              lineHeight: 1.7,
+              lineHeight: 1.8,
             }}
           >
-            Your Enterprise AI Copilot can help with Agile,
-            Product Management, SAP, AWS, AEM, AI,
-            Software Engineering, Architecture and much more.
+            Ask about Agile, SAP, AWS, AEM,
+            Product Management, Software
+            Engineering, AI, Architecture,
+            APIs and much more.
           </Typography>
 
-          {/* Suggested Prompts */}
           <Box
             sx={{
               display: "flex",
               flexWrap: "wrap",
               justifyContent: "center",
-              alignItems: "center",
               gap: 2,
-              width: "100%",
-              maxWidth: 700,
-              mx: "auto",
             }}
           >
-            {suggestions.map((prompt) => (
-              <Chip
-                key={prompt}
-                label={prompt}
-                clickable
-                color="primary"
-                variant="outlined"
-                onClick={() => onPromptClick?.(prompt)}
-                sx={{
-                  cursor: "pointer",
-                  fontWeight: 500,
-                  px: 1,
-                  py: 2.5,
-                  transition: "all .25s ease",
 
-                  "&:hover": {
-                    bgcolor: "#1976d2",
-                    color: "#fff",
-                    transform: "translateY(-2px)",
-                    boxShadow: "0 6px 18px rgba(25,118,210,.25)",
-                  },
-                }}
-              />
-            ))}
+            {suggestions.map(
+              (suggestion) => (
+
+                <Chip
+
+                  key={suggestion}
+
+                  label={suggestion}
+
+                  clickable
+
+                  color="primary"
+
+                  variant="outlined"
+
+                  onClick={() =>
+                    onPromptClick?.(
+                      suggestion
+                    )
+                  }
+
+                  sx={{
+
+                    cursor: "pointer",
+
+                    transition:
+                      "all .2s ease",
+
+                    "&:hover": {
+
+                      bgcolor:
+                        "primary.main",
+
+                      color: "#fff",
+
+                      transform:
+                        "translateY(-2px)",
+
+                    },
+
+                  }}
+
+                />
+
+              )
+            )}
+
           </Box>
+
         </Paper>
+
       ) : (
-        <MessageList messages={messages} />
+
+        <MessageList
+          messages={messages}
+        />
+
       )}
 
-      {loading && <TypingIndicator />}
+      {loading && (
+        <TypingIndicator />
+      )}
 
       <div ref={bottomRef} />
+
     </Box>
+
   );
+
 }
 
 export default ChatWindow;

@@ -16,6 +16,7 @@ function MessageList({ messages }) {
           role={message.role}
           text={message.text}
           timestamp={message.timestamp}
+          streaming={message.isStreaming}
         />
       ))}
     </Box>

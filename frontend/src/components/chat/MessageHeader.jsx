@@ -1,7 +1,6 @@
 import {
   Avatar,
   Box,
-  Stack,
   Typography,
 } from "@mui/material";
 
@@ -16,18 +15,20 @@ function MessageHeader({
   text,
 }) {
   return (
-    <Stack
-      direction="row"
-      justifyContent="space-between"
-      alignItems="center"
+    <Box
       sx={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
         mb: 2,
       }}
     >
-      <Stack
-        direction="row"
-        spacing={1.5}
-        alignItems="center"
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1.5,
+        }}
       >
         <Avatar
           sx={{
@@ -45,10 +46,12 @@ function MessageHeader({
         </Avatar>
 
         <Box>
-          <Stack
-            direction="row"
-            spacing={1}
-            alignItems="center"
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+            }}
           >
             <Typography
               sx={{
@@ -70,14 +73,14 @@ function MessageHeader({
                 {timestamp}
               </Typography>
             )}
-          </Stack>
+          </Box>
         </Box>
-      </Stack>
+      </Box>
 
       {!isUser && (
         <CopyButton text={text} />
       )}
-    </Stack>
+    </Box>
   );
 }
 
