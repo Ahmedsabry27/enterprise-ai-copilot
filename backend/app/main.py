@@ -5,10 +5,24 @@ from mangum import Mangum
 from app.api.chat import router as chat_router
 from app.api.conversation import router as conversation_router
 
+from app.database.base import Base
+from app.database.session import engine
+
+# Import models so SQLAlchemy registers them
+from app.models.conversation import Conversation
+from app.models.message import Message
+
 app = FastAPI(
     title="Enterprise AI Copilot",
     version="1.1.1",
 )
+
+# --------------------------------------------------
+# Create Database Tables
+# --------------------------------------------------
+@app.on_event("startup")
+def startup():
+    Base.metadata.create_all(bind=engine)
 
 # --------------------------------------------------
 # CORS
@@ -43,7 +57,6 @@ def health():
     return {
         "status": "healthy",
     }
-
 
 # --------------------------------------------------
 # AWS Lambda Handler
