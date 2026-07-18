@@ -1,8 +1,14 @@
+import time
 from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.metrics.metrics import (
+    db_connection_errors,
+    db_queries_total,
+    db_query_latency_seconds,
+)
 from app.models.conversation import Conversation
 
 
@@ -18,15 +24,29 @@ class ConversationRepository:
         title: str,
     ) -> Conversation:
 
-        conversation = Conversation(
-            title=title,
-        )
+        start = time.perf_counter()
 
-        db.add(conversation)
-        db.commit()
-        db.refresh(conversation)
+        try:
+            conversation = Conversation(
+                title=title,
+            )
 
-        return conversation
+            db.add(conversation)
+            db.commit()
+            db.refresh(conversation)
+
+            return conversation
+
+        except Exception:
+            db.rollback()
+            db_connection_errors.inc()
+            raise
+
+        finally:
+            db_queries_total.inc()
+            db_query_latency_seconds.observe(
+                time.perf_counter() - start
+            )
 
     # --------------------------------------------------
     # Read
@@ -37,11 +57,24 @@ class ConversationRepository:
         db: Session,
     ) -> list[Conversation]:
 
-        return (
-            db.query(Conversation)
-            .order_by(Conversation.updated_at.desc())
-            .all()
-        )
+        start = time.perf_counter()
+
+        try:
+            return (
+                db.query(Conversation)
+                .order_by(Conversation.updated_at.desc())
+                .all()
+            )
+
+        except Exception:
+            db_connection_errors.inc()
+            raise
+
+        finally:
+            db_queries_total.inc()
+            db_query_latency_seconds.observe(
+                time.perf_counter() - start
+            )
 
     def get_by_id(
         self,
@@ -49,13 +82,26 @@ class ConversationRepository:
         conversation_id: UUID,
     ) -> Conversation | None:
 
-        return (
-            db.query(Conversation)
-            .filter(
-                Conversation.id == conversation_id
+        start = time.perf_counter()
+
+        try:
+            return (
+                db.query(Conversation)
+                .filter(
+                    Conversation.id == conversation_id
+                )
+                .first()
             )
-            .first()
-        )
+
+        except Exception:
+            db_connection_errors.inc()
+            raise
+
+        finally:
+            db_queries_total.inc()
+            db_query_latency_seconds.observe(
+                time.perf_counter() - start
+            )
 
     # --------------------------------------------------
     # Update Title
@@ -68,15 +114,27 @@ class ConversationRepository:
         title: str,
     ) -> Conversation:
 
-        conversation.title = title
+        start = time.perf_counter()
 
-        # Optional: Move the conversation to the top
-        conversation.updated_at = datetime.utcnow()
+        try:
+            conversation.title = title
+            conversation.updated_at = datetime.utcnow()
 
-        db.commit()
-        db.refresh(conversation)
+            db.commit()
+            db.refresh(conversation)
 
-        return conversation
+            return conversation
+
+        except Exception:
+            db.rollback()
+            db_connection_errors.inc()
+            raise
+
+        finally:
+            db_queries_total.inc()
+            db_query_latency_seconds.observe(
+                time.perf_counter() - start
+            )
 
     # --------------------------------------------------
     # Touch Conversation
@@ -87,17 +145,27 @@ class ConversationRepository:
         db: Session,
         conversation: Conversation,
     ) -> Conversation:
-        """
-        Update the conversation's updated_at timestamp.
-        Called whenever a new message is added.
-        """
 
-        conversation.updated_at = datetime.utcnow()
+        start = time.perf_counter()
 
-        db.commit()
-        db.refresh(conversation)
+        try:
+            conversation.updated_at = datetime.utcnow()
 
-        return conversation
+            db.commit()
+            db.refresh(conversation)
+
+            return conversation
+
+        except Exception:
+            db.rollback()
+            db_connection_errors.inc()
+            raise
+
+        finally:
+            db_queries_total.inc()
+            db_query_latency_seconds.observe(
+                time.perf_counter() - start
+            )
 
     # --------------------------------------------------
     # Delete
@@ -109,18 +177,32 @@ class ConversationRepository:
         conversation_id: UUID,
     ) -> bool:
 
-        conversation = self.get_by_id(
-            db,
-            conversation_id,
-        )
+        start = time.perf_counter()
 
-        if not conversation:
-            return False
+        try:
+            conversation = self.get_by_id(
+                db,
+                conversation_id,
+            )
 
-        db.delete(conversation)
-        db.commit()
+            if not conversation:
+                return False
 
-        return True
+            db.delete(conversation)
+            db.commit()
+
+            return True
+
+        except Exception:
+            db.rollback()
+            db_connection_errors.inc()
+            raise
+
+        finally:
+            db_queries_total.inc()
+            db_query_latency_seconds.observe(
+                time.perf_counter() - start
+            )
 
 
 conversation_repository = ConversationRepository()

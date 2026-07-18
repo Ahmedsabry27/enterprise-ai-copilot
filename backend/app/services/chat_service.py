@@ -1,11 +1,20 @@
 import json
 import logging
+import time
 from typing import Generator
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
 from app.core.openai_client import client
+from app.metrics.metrics import (
+    completion_tokens_total,
+    openai_errors_total,
+    openai_latency_seconds,
+    openai_requests_total,
+    prompt_tokens_total,
+    total_tokens_total,
+)
 from app.services.conversation_service import (
     conversation_service,
 )
@@ -40,7 +49,7 @@ Always:
 class ChatService:
 
     # --------------------------------------------------
-    # Existing synchronous endpoint
+    # Synchronous Chat Endpoint
     # --------------------------------------------------
     def ask(
         self,
@@ -50,7 +59,7 @@ class ChatService:
         previous_response_id: str | None = None,
     ):
 
-        logger.info("Incoming request")
+        logger.info("incoming_chat_request")
 
         # ------------------------------------------
         # Save user message
@@ -70,6 +79,8 @@ class ChatService:
 
         try:
 
+            start = time.perf_counter()
+
             if previous_response_id:
 
                 response = client.responses.create(
@@ -84,6 +95,37 @@ class ChatService:
                     model="gpt-4.1-mini",
                     instructions=SYSTEM_PROMPT,
                     input=message,
+                )
+
+            latency = time.perf_counter() - start
+
+            # ------------------------------------------
+            # Metrics
+            # ------------------------------------------
+            openai_requests_total.inc()
+            openai_latency_seconds.observe(latency)
+
+            usage = getattr(response, "usage", None)
+
+            if usage:
+
+                prompt_tokens = usage.input_tokens
+                completion_tokens = usage.output_tokens
+                total_tokens = usage.total_tokens
+
+                prompt_tokens_total.inc(prompt_tokens)
+                completion_tokens_total.inc(completion_tokens)
+                total_tokens_total.inc(total_tokens)
+
+                logger.info(
+                    "openai_usage",
+                    extra={
+                        "model": "gpt-4.1-mini",
+                        "latency_seconds": round(latency, 3),
+                        "prompt_tokens": prompt_tokens,
+                        "completion_tokens": completion_tokens,
+                        "total_tokens": total_tokens,
+                    },
                 )
 
             # ------------------------------------------
@@ -103,17 +145,31 @@ class ChatService:
                     conversation_id=conversation_id,
                 )
 
+            logger.info(
+                "openai_request_completed",
+                extra={
+                    "model": "gpt-4.1-mini",
+                    "latency_seconds": round(latency, 3),
+                },
+            )
+
             return {
                 "response": response.output_text,
                 "response_id": response.id,
             }
 
         except Exception:
-            logger.exception("OpenAI request failed.")
+
+            openai_errors_total.inc()
+
+            logger.exception(
+                "openai_request_failed",
+            )
+
             raise
 
     # --------------------------------------------------
-    # Streaming endpoint (SSE)
+    # Streaming Endpoint (SSE)
     # --------------------------------------------------
     def stream(
         self,
@@ -123,7 +179,7 @@ class ChatService:
         previous_response_id: str | None = None,
     ) -> Generator[str, None, None]:
 
-        logger.info("Streaming request started.")
+        logger.info("streaming_request_started")
 
         # ------------------------------------------
         # Save user message
@@ -143,9 +199,11 @@ class ChatService:
 
         try:
 
-            yield (
-                f"data: {json.dumps({'type': 'start'})}\n\n"
-            )
+            openai_requests_total.inc()
+
+            yield f"data: {json.dumps({'type': 'start'})}\n\n"
+
+            start = time.perf_counter()
 
             if previous_response_id:
 
@@ -166,13 +224,15 @@ class ChatService:
                 )
 
             response_id = None
-            assistant_text = ""            
+            assistant_text = ""
+
             for event in stream:
 
                 # ------------------------------------------
-                # Capture OpenAI response ID
+                # Capture Response ID
                 # ------------------------------------------
                 if hasattr(event, "response") and event.response:
+
                     response_id = getattr(
                         event.response,
                         "id",
@@ -180,7 +240,7 @@ class ChatService:
                     )
 
                 # ------------------------------------------
-                # Stream text deltas
+                # Stream Text
                 # ------------------------------------------
                 if event.type == "response.output_text.delta":
 
@@ -191,37 +251,48 @@ class ChatService:
                         "text": event.delta,
                     }
 
-                    yield (
-                        f"data: {json.dumps(payload)}\n\n"
-                    )
+                    yield f"data: {json.dumps(payload)}\n\n"
 
                 # ------------------------------------------
-                # Optional logging
+                # Response Completed
                 # ------------------------------------------
-                elif event.type == "response.created":
-
-                    logger.info(
-                        "OpenAI response created."
-                    )
-
                 elif event.type == "response.completed":
 
+                    latency = time.perf_counter() - start
+
+                    openai_latency_seconds.observe(latency)
+
                     logger.info(
-                        "OpenAI response completed."
+                        "stream_completed",
+                        extra={
+                            "model": "gpt-4.1-mini",
+                            "latency_seconds": round(latency, 3),
+                        },
                     )
+
+                elif event.type == "response.created":
+
+                    logger.info("stream_created")
 
                 elif event.type == "response.failed":
 
-                    logger.error(
-                        "OpenAI response failed."
-                    )
+                    openai_errors_total.inc()
+
+                    logger.error("stream_failed")
 
                 elif event.type == "error":
 
-                    logger.error(event)
+                    openai_errors_total.inc()
+
+                    logger.error(
+                        "stream_error",
+                        extra={
+                            "error": str(event),
+                        },
+                    )
 
             # ------------------------------------------
-            # Save assistant message
+            # Save Assistant Message
             # ------------------------------------------
             if conversation_id:
 
@@ -235,33 +306,29 @@ class ChatService:
                 conversation_service.touch_conversation(
                     db=db,
                     conversation_id=conversation_id,
-                )            
-            # ------------------------------------------
-            # Notify frontend that streaming completed
-            # ------------------------------------------
+                )
+
             payload = {
                 "type": "completed",
                 "response_id": response_id,
             }
 
-            yield (
-                f"data: {json.dumps(payload)}\n\n"
-            )
+            yield f"data: {json.dumps(payload)}\n\n"
 
-            logger.info("Streaming completed.")
+            logger.info("streaming_request_completed")
 
         except Exception as ex:
 
-            logger.exception("Streaming failed.")
+            openai_errors_total.inc()
+
+            logger.exception("streaming_request_failed")
 
             payload = {
                 "type": "error",
                 "message": str(ex),
             }
 
-            yield (
-                f"data: {json.dumps(payload)}\n\n"
-            )
+            yield f"data: {json.dumps(payload)}\n\n"
 
 
 chat_service = ChatService()

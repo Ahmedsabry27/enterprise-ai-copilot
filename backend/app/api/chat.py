@@ -1,8 +1,15 @@
+import time
+
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.database.dependencies import get_db
+from app.metrics.metrics import (
+    chat_errors_total,
+    chat_requests_total,
+    messages_processed_total,
+)
 from app.models.chat import ChatRequest, ChatResponse
 from app.services.chat_service import chat_service
 
@@ -18,6 +25,12 @@ def chat(
     db: Session = Depends(get_db),
 ):
 
+    start_time = time.perf_counter()
+
+    # Metrics
+    chat_requests_total.inc()
+    messages_processed_total.inc()
+
     try:
 
         result = chat_service.ask(
@@ -27,12 +40,16 @@ def chat(
             previous_response_id=request.previous_response_id,
         )
 
+        duration = time.perf_counter() - start_time
+
         return ChatResponse(
             response=result["response"],
             response_id=result["response_id"],
         )
 
     except Exception as e:
+
+        chat_errors_total.inc()
 
         raise HTTPException(
             status_code=500,
@@ -48,6 +65,10 @@ def stream_chat(
     request: ChatRequest,
     db: Session = Depends(get_db),
 ):
+
+    # Metrics
+    chat_requests_total.inc()
+    messages_processed_total.inc()
 
     try:
 
@@ -69,6 +90,8 @@ def stream_chat(
         )
 
     except Exception as e:
+
+        chat_errors_total.inc()
 
         raise HTTPException(
             status_code=500,

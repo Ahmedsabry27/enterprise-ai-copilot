@@ -12,10 +12,15 @@ from app.database.base import Base
 from app.database.session import engine
 from app.logging.logger import logger
 from app.logging.middleware import LoggingMiddleware
+from app.metrics.db_metrics import setup_database_metrics
 
 # Import models so SQLAlchemy registers them
 from app.models.conversation import Conversation  # noqa: F401
 from app.models.message import Message  # noqa: F401
+
+
+# Prevent duplicate SQLAlchemy event registration
+_db_metrics_initialized = False
 
 
 # --------------------------------------------------
@@ -23,11 +28,19 @@ from app.models.message import Message  # noqa: F401
 # --------------------------------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _db_metrics_initialized
+
     logger.info("Starting Enterprise AI Copilot...")
 
     try:
         Base.metadata.create_all(bind=engine)
         logger.info("Database initialized successfully.")
+
+        # Register SQLAlchemy metrics once
+        if not _db_metrics_initialized:
+            setup_database_metrics(engine)
+            _db_metrics_initialized = True
+            logger.info("Database metrics initialized.")
 
     except Exception:
         logger.exception("Failed to initialize the database.")
