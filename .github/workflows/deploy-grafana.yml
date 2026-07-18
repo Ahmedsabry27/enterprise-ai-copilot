@@ -12,7 +12,7 @@ env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
   ECR_REPOSITORY: enterprise-ai-grafana
   ECS_CLUSTER: enterprise-monitoring
-  ECS_SERVICE: enterprise-grafana-service
+  ECS_SERVICE: enterprise-grafana-service-ikqowwqe
   ECS_TASK_DEFINITION: enterprise-grafana
   CONTAINER_NAME: grafana
 
