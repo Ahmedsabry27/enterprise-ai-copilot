@@ -223,3 +223,10 @@ backend/.venv/
 backend/.env
 .vscode/
 .DS_Store
+
+
+# Prometheus runtime data
+observability/prometheus/data/
+
+# WAL files
+observability/prometheus/data/**
