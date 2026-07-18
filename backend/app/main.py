@@ -1,9 +1,9 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
-from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from sqlalchemy import text
 
 from app.api.chat import router as chat_router
@@ -36,14 +36,14 @@ async def lifespan(app: FastAPI):
         Base.metadata.create_all(bind=engine)
         logger.info("Database initialized successfully.")
 
-        # Register SQLAlchemy metrics once
+        # Register database metrics once
         if not _db_metrics_initialized:
             setup_database_metrics(engine)
             _db_metrics_initialized = True
             logger.info("Database metrics initialized.")
 
     except Exception:
-        logger.exception("Failed to initialize the database.")
+        logger.exception("Failed to initialize the application.")
         raise
 
     yield
@@ -59,18 +59,6 @@ app = FastAPI(
     version="1.2.0",
     lifespan=lifespan,
 )
-
-
-# --------------------------------------------------
-# Prometheus Metrics
-# --------------------------------------------------
-Instrumentator(
-    excluded_handlers=[
-        "/metrics",
-        "/health",
-        "/favicon.ico",
-    ],
-).instrument(app).expose(app)
 
 
 # --------------------------------------------------
@@ -124,7 +112,6 @@ def health():
 # --------------------------------------------------
 @app.get("/health/details")
 def health_details():
-
     try:
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
@@ -141,6 +128,17 @@ def health_details():
         "database": database,
         "version": "1.2.0",
     }
+
+
+# --------------------------------------------------
+# Prometheus Metrics Endpoint
+# --------------------------------------------------
+@app.get("/metrics")
+def metrics():
+    return Response(
+        content=generate_latest(),
+        media_type=CONTENT_TYPE_LATEST,
+    )
 
 
 # --------------------------------------------------
