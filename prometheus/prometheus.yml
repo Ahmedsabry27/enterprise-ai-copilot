@@ -8,4 +8,4 @@ scrape_configs:
 
     static_configs:
       - targets:
-          - backend:8000
+          - enterprise-ai-alb-844382135.us-east-1.elb.amazonaws.com
