@@ -4,7 +4,12 @@ WORKDIR /app
 
 COPY requirements.txt .
 
+RUN echo "===== REQUIREMENTS ====="
+RUN cat requirements.txt
+
 RUN pip install --no-cache-dir -r requirements.txt
+
+RUN pip show prometheus-fastapi-instrumentator
 
 COPY . .
 
