@@ -66,15 +66,26 @@ app = FastAPI(
 # CORS Configuration
 # --------------------------------------------------
 origins = [
-    "http://localhost:5173",   # React + Vite
-    "http://127.0.0.1:5173",   # React + Vite (127.0.0.1)
+    # Local development
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+
+    # Production (AWS Amplify)
+    "https://main.d3nubels63r4fu.amplifyapp.com",
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=[
+        "GET",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE",
+        "OPTIONS",
+    ],
     allow_headers=["*"],
     expose_headers=["*"],
 )
