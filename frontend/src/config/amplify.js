@@ -1,5 +1,7 @@
 import { Amplify } from "aws-amplify";
 
+const isLocal = window.location.hostname === "localhost";
+
 Amplify.configure({
   Auth: {
     Cognito: {
@@ -10,10 +12,14 @@ Amplify.configure({
           domain: "us-east-14lswwbt7e.auth.us-east-1.amazoncognito.com",
           scopes: ["openid", "email"],
           redirectSignIn: [
-            "http://localhost:5173",
+            isLocal
+              ? "http://localhost:5173"
+              : "https://main.d3nubels63r4fu.amplifyapp.com",
           ],
           redirectSignOut: [
-            "http://localhost:5173",
+            isLocal
+              ? "http://localhost:5173"
+              : "https://main.d3nubels63r4fu.amplifyapp.com",
           ],
           responseType: "code",
         },
