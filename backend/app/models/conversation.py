@@ -22,6 +22,13 @@ class Conversation(Base):
         nullable=False,
     )
 
+    # NEW: Cognito user identifier (JWT "sub")
+    user_id: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        index=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow,

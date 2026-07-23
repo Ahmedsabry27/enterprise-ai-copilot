@@ -3,15 +3,14 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.auth.dependencies import get_current_user
 from app.database.dependencies import get_db
 from app.schemas.conversation import (
     ConversationCreate,
     ConversationUpdate,
     ConversationResponse,
 )
-from app.services.conversation_service import (
-    conversation_service,
-)
+from app.services.conversation_service import conversation_service
 
 router = APIRouter(
     prefix="/conversations",
@@ -26,9 +25,11 @@ router = APIRouter(
 def create_conversation(
     request: ConversationCreate,
     db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
 ):
     return conversation_service.create_conversation(
         db=db,
+        user_id=user["sub"],
         title=request.title,
     )
 
@@ -39,8 +40,12 @@ def create_conversation(
 @router.get("", response_model=list[ConversationResponse])
 def get_conversations(
     db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
 ):
-    return conversation_service.get_conversations(db)
+    return conversation_service.get_conversations(
+        db=db,
+        user_id=user["sub"],
+    )
 
 
 # --------------------------------------------------
@@ -53,13 +58,15 @@ def get_conversations(
 def get_conversation(
     conversation_id: UUID,
     db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
 ):
     conversation = conversation_service.get_conversation(
-        db,
-        conversation_id,
+        db=db,
+        conversation_id=conversation_id,
+        user_id=user["sub"],
     )
 
-    if not conversation:
+    if conversation is None:
         raise HTTPException(
             status_code=404,
             detail="Conversation not found",
@@ -79,16 +86,16 @@ def update_conversation(
     conversation_id: UUID,
     request: ConversationUpdate,
     db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
 ):
-    conversation = (
-        conversation_service.update_conversation_title(
-            db=db,
-            conversation_id=conversation_id,
-            title=request.title,
-        )
+    conversation = conversation_service.update_conversation_title(
+        db=db,
+        conversation_id=conversation_id,
+        user_id=user["sub"],
+        title=request.title,
     )
 
-    if not conversation:
+    if conversation is None:
         raise HTTPException(
             status_code=404,
             detail="Conversation not found",
@@ -104,22 +111,15 @@ def update_conversation(
 def get_messages(
     conversation_id: UUID,
     db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
 ):
-    conversation = conversation_service.get_conversation(
-        db,
-        conversation_id,
+    messages = conversation_service.get_messages(
+        db=db,
+        conversation_id=conversation_id,
+        user_id=user["sub"],
     )
 
-    if not conversation:
-        raise HTTPException(
-            status_code=404,
-            detail="Conversation not found",
-        )
-
-    return conversation_service.get_messages(
-        db,
-        conversation_id,
-    )
+    return messages
 
 
 # --------------------------------------------------
@@ -129,10 +129,12 @@ def get_messages(
 def delete_conversation(
     conversation_id: UUID,
     db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
 ):
     deleted = conversation_service.delete_conversation(
-        db,
-        conversation_id,
+        db=db,
+        conversation_id=conversation_id,
+        user_id=user["sub"],
     )
 
     if not deleted:

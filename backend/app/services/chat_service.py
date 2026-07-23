@@ -15,9 +15,7 @@ from app.metrics.metrics import (
     prompt_tokens_total,
     total_tokens_total,
 )
-from app.services.conversation_service import (
-    conversation_service,
-)
+from app.services.conversation_service import conversation_service
 
 logger = logging.getLogger(__name__)
 
@@ -49,22 +47,55 @@ Always:
 class ChatService:
 
     # --------------------------------------------------
+    # Validate conversation ownership
+    # --------------------------------------------------
+    def _validate_conversation(
+        self,
+        db: Session,
+        conversation_id: UUID,
+        user_id: str,
+    ) -> None:
+        """
+        Ensures the conversation belongs to the authenticated user.
+        Raises if the conversation doesn't exist or is not owned by the user.
+        """
+
+        conversation = conversation_service.get_conversation(
+            db=db,
+            conversation_id=conversation_id,
+            user_id=user_id,
+        )
+
+        if conversation is None:
+            raise ValueError("Conversation not found or access denied")
+
+    # --------------------------------------------------
     # Synchronous Chat Endpoint
     # --------------------------------------------------
     def ask(
         self,
         db: Session,
+        user_id: str,
         message: str,
         conversation_id: UUID | None = None,
         previous_response_id: str | None = None,
     ):
 
-        logger.info("incoming_chat_request")
+        logger.info(
+            "incoming_chat_request",
+            extra={"user_id": user_id},
+        )
 
         # ------------------------------------------
-        # Save user message
+        # Validate ownership + Save user message
         # ------------------------------------------
         if conversation_id:
+
+            self._validate_conversation(
+                db=db,
+                conversation_id=conversation_id,
+                user_id=user_id,
+            )
 
             conversation_service.save_user_message(
                 db=db,
@@ -75,6 +106,7 @@ class ChatService:
             conversation_service.touch_conversation(
                 db=db,
                 conversation_id=conversation_id,
+                user_id=user_id,
             )
 
         try:
@@ -99,9 +131,6 @@ class ChatService:
 
             latency = time.perf_counter() - start
 
-            # ------------------------------------------
-            # Metrics
-            # ------------------------------------------
             openai_requests_total.inc()
             openai_latency_seconds.observe(latency)
 
@@ -120,6 +149,7 @@ class ChatService:
                 logger.info(
                     "openai_usage",
                     extra={
+                        "user_id": user_id,
                         "model": "gpt-4.1-mini",
                         "latency_seconds": round(latency, 3),
                         "prompt_tokens": prompt_tokens,
@@ -143,11 +173,13 @@ class ChatService:
                 conversation_service.touch_conversation(
                     db=db,
                     conversation_id=conversation_id,
+                    user_id=user_id,
                 )
 
             logger.info(
                 "openai_request_completed",
                 extra={
+                    "user_id": user_id,
                     "model": "gpt-4.1-mini",
                     "latency_seconds": round(latency, 3),
                 },
@@ -164,27 +196,38 @@ class ChatService:
 
             logger.exception(
                 "openai_request_failed",
+                extra={"user_id": user_id},
             )
 
             raise
 
     # --------------------------------------------------
-    # Streaming Endpoint (SSE)
+    # Streaming Endpoint
     # --------------------------------------------------
     def stream(
         self,
         db: Session,
+        user_id: str,
         message: str,
         conversation_id: UUID | None = None,
         previous_response_id: str | None = None,
     ) -> Generator[str, None, None]:
 
-        logger.info("streaming_request_started")
+        logger.info(
+            "streaming_request_started",
+            extra={"user_id": user_id},
+        )
 
         # ------------------------------------------
-        # Save user message
+        # Validate ownership + Save user message
         # ------------------------------------------
         if conversation_id:
+
+            self._validate_conversation(
+                db=db,
+                conversation_id=conversation_id,
+                user_id=user_id,
+            )
 
             conversation_service.save_user_message(
                 db=db,
@@ -195,6 +238,7 @@ class ChatService:
             conversation_service.touch_conversation(
                 db=db,
                 conversation_id=conversation_id,
+                user_id=user_id,
             )
 
         try:
@@ -228,34 +272,21 @@ class ChatService:
 
             for event in stream:
 
-                # ------------------------------------------
-                # Capture Response ID
-                # ------------------------------------------
                 if hasattr(event, "response") and event.response:
-
                     response_id = getattr(
                         event.response,
                         "id",
                         response_id,
                     )
 
-                # ------------------------------------------
-                # Stream Text
-                # ------------------------------------------
                 if event.type == "response.output_text.delta":
 
                     assistant_text += event.delta
 
-                    payload = {
-                        "type": "delta",
-                        "text": event.delta,
-                    }
+                    yield (
+                        f"data: {json.dumps({'type': 'delta', 'text': event.delta})}\n\n"
+                    )
 
-                    yield f"data: {json.dumps(payload)}\n\n"
-
-                # ------------------------------------------
-                # Response Completed
-                # ------------------------------------------
                 elif event.type == "response.completed":
 
                     latency = time.perf_counter() - start
@@ -265,35 +296,26 @@ class ChatService:
                     logger.info(
                         "stream_completed",
                         extra={
+                            "user_id": user_id,
                             "model": "gpt-4.1-mini",
                             "latency_seconds": round(latency, 3),
                         },
                     )
 
                 elif event.type == "response.created":
-
                     logger.info("stream_created")
 
                 elif event.type == "response.failed":
-
                     openai_errors_total.inc()
-
                     logger.error("stream_failed")
 
                 elif event.type == "error":
-
                     openai_errors_total.inc()
-
                     logger.error(
                         "stream_error",
-                        extra={
-                            "error": str(event),
-                        },
+                        extra={"error": str(event)},
                     )
 
-            # ------------------------------------------
-            # Save Assistant Message
-            # ------------------------------------------
             if conversation_id:
 
                 conversation_service.save_assistant_message(
@@ -306,29 +328,30 @@ class ChatService:
                 conversation_service.touch_conversation(
                     db=db,
                     conversation_id=conversation_id,
+                    user_id=user_id,
                 )
 
-            payload = {
-                "type": "completed",
-                "response_id": response_id,
-            }
+            yield (
+                f"data: {json.dumps({'type': 'completed', 'response_id': response_id})}\n\n"
+            )
 
-            yield f"data: {json.dumps(payload)}\n\n"
-
-            logger.info("streaming_request_completed")
+            logger.info(
+                "streaming_request_completed",
+                extra={"user_id": user_id},
+            )
 
         except Exception as ex:
 
             openai_errors_total.inc()
 
-            logger.exception("streaming_request_failed")
+            logger.exception(
+                "streaming_request_failed",
+                extra={"user_id": user_id},
+            )
 
-            payload = {
-                "type": "error",
-                "message": str(ex),
-            }
-
-            yield f"data: {json.dumps(payload)}\n\n"
+            yield (
+                f"data: {json.dumps({'type': 'error', 'message': str(ex)})}\n\n"
+            )
 
 
 chat_service = ChatService()

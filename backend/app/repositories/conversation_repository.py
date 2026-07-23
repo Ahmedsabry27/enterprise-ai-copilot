@@ -21,14 +21,17 @@ class ConversationRepository:
     def create(
         self,
         db: Session,
+        user_id: str,
         title: str,
     ) -> Conversation:
 
         start = time.perf_counter()
 
         try:
+
             conversation = Conversation(
                 title=title,
+                user_id=user_id,
             )
 
             db.add(conversation)
@@ -55,14 +58,21 @@ class ConversationRepository:
     def get_all(
         self,
         db: Session,
+        user_id: str,
     ) -> list[Conversation]:
 
         start = time.perf_counter()
 
         try:
+
             return (
                 db.query(Conversation)
-                .order_by(Conversation.updated_at.desc())
+                .filter(
+                    Conversation.user_id == user_id
+                )
+                .order_by(
+                    Conversation.updated_at.desc()
+                )
                 .all()
             )
 
@@ -80,15 +90,18 @@ class ConversationRepository:
         self,
         db: Session,
         conversation_id: UUID,
+        user_id: str,
     ) -> Conversation | None:
 
         start = time.perf_counter()
 
         try:
+
             return (
                 db.query(Conversation)
                 .filter(
-                    Conversation.id == conversation_id
+                    Conversation.id == conversation_id,
+                    Conversation.user_id == user_id,
                 )
                 .first()
             )
@@ -117,6 +130,7 @@ class ConversationRepository:
         start = time.perf_counter()
 
         try:
+
             conversation.title = title
             conversation.updated_at = datetime.utcnow()
 
@@ -149,6 +163,7 @@ class ConversationRepository:
         start = time.perf_counter()
 
         try:
+
             conversation.updated_at = datetime.utcnow()
 
             db.commit()
@@ -174,19 +189,12 @@ class ConversationRepository:
     def delete(
         self,
         db: Session,
-        conversation_id: UUID,
+        conversation: Conversation,
     ) -> bool:
 
         start = time.perf_counter()
 
         try:
-            conversation = self.get_by_id(
-                db,
-                conversation_id,
-            )
-
-            if not conversation:
-                return False
 
             db.delete(conversation)
             db.commit()

@@ -1,16 +1,30 @@
+import { getAccessToken } from "../services/auth";
+
 const API_URL = `${import.meta.env.VITE_API_URL}/conversations`;
+
+// --------------------------------------------------
+// Helper
+// --------------------------------------------------
+
+async function getAuthHeaders() {
+  const token = await getAccessToken();
+
+  return {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+  };
+}
 
 // --------------------------------------------------
 // Create Conversation
 // --------------------------------------------------
+
 export async function createConversation(
   title = "New Conversation"
 ) {
   const response = await fetch(API_URL, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: await getAuthHeaders(),
     body: JSON.stringify({
       title,
     }),
@@ -26,8 +40,15 @@ export async function createConversation(
 // --------------------------------------------------
 // Get All Conversations
 // --------------------------------------------------
+
 export async function getConversations() {
-  const response = await fetch(API_URL);
+  const token = await getAccessToken();
+
+  const response = await fetch(API_URL, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
 
   if (!response.ok) {
     throw new Error("Failed to load conversations");
@@ -39,8 +60,15 @@ export async function getConversations() {
 // --------------------------------------------------
 // Get Single Conversation
 // --------------------------------------------------
+
 export async function getConversation(id) {
-  const response = await fetch(`${API_URL}/${id}`);
+  const token = await getAccessToken();
+
+  const response = await fetch(`${API_URL}/${id}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
 
   if (!response.ok) {
     throw new Error("Conversation not found");
@@ -52,11 +80,19 @@ export async function getConversation(id) {
 // --------------------------------------------------
 // Get Messages for a Conversation
 // --------------------------------------------------
+
 export async function getMessages(
   conversationId
 ) {
+  const token = await getAccessToken();
+
   const response = await fetch(
-    `${API_URL}/${conversationId}/messages`
+    `${API_URL}/${conversationId}/messages`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
   );
 
   if (!response.ok) {
@@ -71,9 +107,15 @@ export async function getMessages(
 // --------------------------------------------------
 // Delete Conversation
 // --------------------------------------------------
+
 export async function deleteConversation(id) {
+  const token = await getAccessToken();
+
   const response = await fetch(`${API_URL}/${id}`, {
     method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
   });
 
   if (!response.ok) {
@@ -86,6 +128,7 @@ export async function deleteConversation(id) {
 // --------------------------------------------------
 // Update Conversation Title
 // --------------------------------------------------
+
 export async function updateConversationTitle(
   id,
   title
@@ -94,9 +137,7 @@ export async function updateConversationTitle(
     `${API_URL}/${id}`,
     {
       method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({
         title,
       }),

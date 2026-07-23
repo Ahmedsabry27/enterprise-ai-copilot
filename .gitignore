@@ -230,3 +230,4 @@ observability/prometheus/data/
 
 # WAL files
 observability/prometheus/data/**
+node_modules

@@ -1,3 +1,5 @@
+import { getAccessToken } from "../services/auth";
+
 const API_URL = `${import.meta.env.VITE_API_URL}/chat`;
 
 console.log("API URL:", API_URL);
@@ -18,9 +20,13 @@ export async function sendMessage({
     previous_response_id: previousResponseId,
   };
 
+  // Get Cognito Access Token
+  const token = await getAccessToken();
+
   const response = await fetch(API_URL, {
     method: "POST",
     headers: {
+      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
@@ -58,33 +64,31 @@ export async function streamMessage({
     previous_response_id: previousResponseId,
   };
 
-  const response = await fetch(
-    `${API_URL}/stream`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "text/event-stream",
-      },
-      body: JSON.stringify(payload),
-      signal,
-    }
-  );
+  // Get Cognito Access Token
+  const token = await getAccessToken();
+
+  const response = await fetch(`${API_URL}/stream`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+    },
+    body: JSON.stringify(payload),
+    signal,
+  });
 
   if (!response.ok) {
     throw new Error(await response.text());
   }
 
   const reader = response.body.getReader();
-
   const decoder = new TextDecoder();
 
   let buffer = "";
 
   while (true) {
-
-    const { value, done } =
-      await reader.read();
+    const { value, done } = await reader.read();
 
     if (done) break;
 
@@ -92,67 +96,38 @@ export async function streamMessage({
       stream: true,
     });
 
-    const events =
-      buffer.split("\n\n");
-
-    buffer =
-      events.pop() || "";
+    const events = buffer.split("\n\n");
+    buffer = events.pop() || "";
 
     for (const event of events) {
+      if (!event.startsWith("data:")) continue;
 
-      if (!event.startsWith("data:"))
-        continue;
-
-      const json =
-        event.replace(
-          "data:",
-          ""
-        ).trim();
+      const json = event.replace("data:", "").trim();
 
       if (!json) continue;
 
-      const data =
-        JSON.parse(json);
+      const data = JSON.parse(json);
 
       switch (data.type) {
-
         case "start":
-
           onStart?.();
-
           break;
 
         case "delta":
-
-          onDelta?.(
-            data.text
-          );
-
+          onDelta?.(data.text);
           break;
 
         case "completed":
-
-          onCompleted?.(
-            data.response_id
-          );
-
+          onCompleted?.(data.response_id);
           break;
 
         case "error":
-
-          onError?.(
-            data.message
-          );
-
+          onError?.(data.message);
           break;
 
         default:
           break;
-
       }
-
     }
-
   }
-
 }

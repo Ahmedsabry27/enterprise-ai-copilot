@@ -6,6 +6,7 @@ from mangum import Mangum
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from sqlalchemy import text
 
+from app.api.auth import router as auth_router
 from app.api.chat import router as chat_router
 from app.api.conversation import router as conversation_router
 from app.database.base import Base
@@ -62,24 +63,35 @@ app = FastAPI(
 
 
 # --------------------------------------------------
-# Middleware
+# CORS Configuration
 # --------------------------------------------------
-app.add_middleware(LoggingMiddleware)
+origins = [
+    "http://localhost:5173",   # React + Vite
+    "http://127.0.0.1:5173",   # React + Vite (127.0.0.1)
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=".*",
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
+
+
+# --------------------------------------------------
+# Custom Middleware
+# --------------------------------------------------
+app.add_middleware(LoggingMiddleware)
 
 
 # --------------------------------------------------
 # API Routes
 # --------------------------------------------------
-app.include_router(chat_router)
-app.include_router(conversation_router)
+app.include_router(auth_router, tags=["Authentication"])
+app.include_router(chat_router, tags=["Chat"])
+app.include_router(conversation_router, tags=["Conversations"])
 
 
 # --------------------------------------------------

@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
+from app.auth.dependencies import get_current_user
 from app.database.dependencies import get_db
+from app.logging.logger import logger
 from app.metrics.metrics import (
     chat_errors_total,
     chat_requests_total,
@@ -23,37 +25,61 @@ router = APIRouter()
 def chat(
     request: ChatRequest,
     db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
 ):
-
     start_time = time.perf_counter()
 
-    # Metrics
     chat_requests_total.inc()
     messages_processed_total.inc()
+
+    logger.info(
+        "Chat request received",
+        extra={
+            "user_id": user["sub"],
+            "username": user.get("username"),
+        },
+    )
 
     try:
 
         result = chat_service.ask(
             db=db,
+            user_id=user["sub"],
             message=request.message,
             conversation_id=request.conversation_id,
             previous_response_id=request.previous_response_id,
         )
 
-        duration = time.perf_counter() - start_time
+        logger.info(
+            "Chat request completed",
+            extra={
+                "user_id": user["sub"],
+                "duration_ms": round(
+                    (time.perf_counter() - start_time) * 1000,
+                    2,
+                ),
+            },
+        )
 
         return ChatResponse(
             response=result["response"],
             response_id=result["response_id"],
         )
 
-    except Exception as e:
+    except Exception as ex:
 
         chat_errors_total.inc()
 
+        logger.exception(
+            "Chat request failed",
+            extra={
+                "user_id": user["sub"],
+            },
+        )
+
         raise HTTPException(
             status_code=500,
-            detail=str(e),
+            detail=str(ex),
         )
 
 
@@ -64,16 +90,24 @@ def chat(
 def stream_chat(
     request: ChatRequest,
     db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
 ):
-
-    # Metrics
     chat_requests_total.inc()
     messages_processed_total.inc()
+
+    logger.info(
+        "Streaming chat request received",
+        extra={
+            "user_id": user["sub"],
+            "username": user.get("username"),
+        },
+    )
 
     try:
 
         generator = chat_service.stream(
             db=db,
+            user_id=user["sub"],
             message=request.message,
             conversation_id=request.conversation_id,
             previous_response_id=request.previous_response_id,
@@ -89,13 +123,20 @@ def stream_chat(
             },
         )
 
-    except Exception as e:
+    except Exception as ex:
 
         chat_errors_total.inc()
 
+        logger.exception(
+            "Streaming chat request failed",
+            extra={
+                "user_id": user["sub"],
+            },
+        )
+
         raise HTTPException(
             status_code=500,
-            detail=str(e),
+            detail=str(ex),
         )
 
 

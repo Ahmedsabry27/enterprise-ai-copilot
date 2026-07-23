@@ -1,7 +1,12 @@
 import ChatPage from "./pages/ChatPage";
+import ProtectedRoute from "./auth/ProtectedRoute";
 
 function App() {
-  return <ChatPage />;
+    return (
+        <ProtectedRoute>
+            <ChatPage />
+        </ProtectedRoute>
+    );
 }
 
 export default App;

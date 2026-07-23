@@ -19,45 +19,55 @@ class ConversationService:
     def create_conversation(
         self,
         db: Session,
+        user_id: str,
         title: str = "New Conversation",
     ):
         return conversation_repository.create(
             db=db,
+            user_id=user_id,
             title=title,
         )
 
     def get_conversations(
         self,
         db: Session,
+        user_id: str,
     ):
-        return conversation_repository.get_all(db)
+        return conversation_repository.get_all(
+            db=db,
+            user_id=user_id,
+        )
 
     def get_conversation(
         self,
         db: Session,
         conversation_id: UUID,
+        user_id: str,
     ):
         return conversation_repository.get_by_id(
-            db,
-            conversation_id,
+            db=db,
+            conversation_id=conversation_id,
+            user_id=user_id,
         )
 
     # --------------------------------------------------
-    # NEW - Update Conversation Title
+    # Update Conversation
     # --------------------------------------------------
 
     def update_conversation_title(
         self,
         db: Session,
         conversation_id: UUID,
+        user_id: str,
         title: str,
     ):
-        conversation = conversation_repository.get_by_id(
-            db,
-            conversation_id,
+        conversation = self.get_conversation(
+            db=db,
+            conversation_id=conversation_id,
+            user_id=user_id,
         )
 
-        if not conversation:
+        if conversation is None:
             return None
 
         return conversation_repository.update_title(
@@ -66,14 +76,28 @@ class ConversationService:
             title=title,
         )
 
+    # --------------------------------------------------
+    # Delete Conversation
+    # --------------------------------------------------
+
     def delete_conversation(
         self,
         db: Session,
         conversation_id: UUID,
+        user_id: str,
     ):
+        conversation = self.get_conversation(
+            db=db,
+            conversation_id=conversation_id,
+            user_id=user_id,
+        )
+
+        if conversation is None:
+            return None
+
         return conversation_repository.delete(
-            db,
-            conversation_id,
+            db=db,
+            conversation=conversation,
         )
 
     # --------------------------------------------------
@@ -84,24 +108,21 @@ class ConversationService:
         self,
         db: Session,
         conversation_id: UUID,
+        user_id: str,
     ):
-        """
-        Updates the conversation's updated_at timestamp.
-        Called whenever a new message is added.
-        """
-
-        conversation = conversation_repository.get_by_id(
-            db,
-            conversation_id,
+        conversation = self.get_conversation(
+            db=db,
+            conversation_id=conversation_id,
+            user_id=user_id,
         )
 
-        if conversation:
-            return conversation_repository.touch(
-                db,
-                conversation,
-            )
+        if conversation is None:
+            return None
 
-        return None
+        return conversation_repository.touch(
+            db=db,
+            conversation=conversation,
+        )
 
     # --------------------------------------------------
     # Messages
@@ -139,10 +160,25 @@ class ConversationService:
         self,
         db: Session,
         conversation_id: UUID,
+        user_id: str,
     ):
+        """
+        Returns all messages for a conversation after verifying
+        that the conversation belongs to the authenticated user.
+        """
+
+        conversation = self.get_conversation(
+            db=db,
+            conversation_id=conversation_id,
+            user_id=user_id,
+        )
+
+        if conversation is None:
+            return []
+
         return message_repository.get_by_conversation(
-            db,
-            conversation_id,
+            db=db,
+            conversation_id=conversation_id,
         )
 
 
