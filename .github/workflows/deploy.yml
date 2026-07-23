@@ -66,6 +66,53 @@ jobs:
             --query taskDefinition \
             > task-definition.json
 
+      - name: Inject Cognito Environment Variables
+        env:
+          COGNITO_REGION: ${{ secrets.COGNITO_REGION }}
+          COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
+          COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
+          CONTAINER_NAME: ${{ env.CONTAINER_NAME }}
+        run: |
+          jq \
+            --arg container "$CONTAINER_NAME" \
+            --arg region "$COGNITO_REGION" \
+            --arg pool "$COGNITO_USER_POOL_ID" \
+            --arg client "$COGNITO_CLIENT_ID" \
+            '
+            .containerDefinitions |= map(
+              if .name == $container then
+                .environment =
+                  (
+                    (.environment // [])
+                    | map(select(
+                        .name != "COGNITO_REGION" and
+                        .name != "COGNITO_USER_POOL_ID" and
+                        .name != "COGNITO_CLIENT_ID"
+                      ))
+                    +
+                    [
+                      {
+                        "name":"COGNITO_REGION",
+                        "value":$region
+                      },
+                      {
+                        "name":"COGNITO_USER_POOL_ID",
+                        "value":$pool
+                      },
+                      {
+                        "name":"COGNITO_CLIENT_ID",
+                        "value":$client
+                      }
+                    ]
+                  )
+              else
+                .
+              end
+            )
+            ' task-definition.json > task-definition.tmp
+
+          mv task-definition.tmp task-definition.json
+
       - name: Render New Task Definition
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
@@ -91,7 +138,7 @@ jobs:
       - name: Deployment Summary
         run: |
           echo "Deployment completed successfully!"
-          echo "Cluster : $ECS_CLUSTER"
-          echo "Service : $ECS_SERVICE"
+          echo "Cluster    : $ECS_CLUSTER"
+          echo "Service    : $ECS_SERVICE"
           echo "Repository : $ECR_REPOSITORY"
-          echo "Image : ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}"
+          echo "Image      : ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}"
