@@ -1,55 +1,35 @@
-import { Box, Typography } from "@mui/material";
+import {
+  Sidebar as UISidebar,
+  SidebarContent,
+} from "@/components/ui/sidebar";
 
+import SidebarHeader from "./SidebarHeader";
 import ConversationList from "./ConversationList";
-import NewChatButton from "./NewChatButton";
+import SidebarFooter from "./SidebarFooter";
 
-function Sidebar({
-  conversations = [],
-  selectedConversationId,
+export default function Sidebar({
+  conversations,
+  loading,
   onConversationSelect,
   onNewChat,
+  conversationId,
 }) {
   return (
-    <Box
-      sx={{
-        width: 300,
-        flexShrink: 0,
-        height: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        bgcolor: "#fff",
-        borderRight: "1px solid #E5E7EB",
-      }}
-    >
-      <Typography
-        variant="h5"
-        sx={{
-          p: 2,
-          fontWeight: 700,
-        }}
-      >
-        Conversations
-      </Typography>
+    <UISidebar>
+      <SidebarHeader
+        onNewChat={onNewChat}
+      />
 
-      {false && (
-       <NewChatButton onClick={onNewChat} />
-       )}
-
-      <Box
-        sx={{
-          flex: 1,
-          overflowY: "auto",
-          minHeight: 0,
-        }}
-      >
+      <SidebarContent>
         <ConversationList
           conversations={conversations}
-          selectedId={selectedConversationId}
-          onSelect={onConversationSelect}
+          loading={loading}
+          onConversationSelect={onConversationSelect}
+          conversationId={conversationId}
         />
-      </Box>
-    </Box>
+      </SidebarContent>
+
+      <SidebarFooter />
+    </UISidebar>
   );
 }
-
-export default Sidebar;

@@ -2,11 +2,20 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    # --------------------------------------------------
+    # AI
+    # --------------------------------------------------
+
+    AI_PROVIDER: str = "openai"
+
     # OpenAI
     OPENAI_API_KEY: str
 
     # PostgreSQL
     DATABASE_URL: str
+
+    # AWS Bedrock
+    AWS_REGION: str
 
     # AWS Cognito
     COGNITO_REGION: str

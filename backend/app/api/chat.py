@@ -4,14 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
+from app.api.sse import to_sse
 from app.auth.dependencies import get_current_user
 from app.database.dependencies import get_db
 from app.logging.logger import logger
-from app.metrics.metrics import (
-    chat_errors_total,
-    chat_requests_total,
-    messages_processed_total,
-)
 from app.models.chat import ChatRequest, ChatResponse
 from app.services.chat_service import chat_service
 
@@ -29,9 +25,6 @@ def chat(
 ):
     start_time = time.perf_counter()
 
-    chat_requests_total.inc()
-    messages_processed_total.inc()
-
     logger.info(
         "Chat request received",
         extra={
@@ -42,12 +35,11 @@ def chat(
 
     try:
 
-        result = chat_service.ask(
+        response = chat_service.ask(
             db=db,
             user_id=user["sub"],
             message=request.message,
             conversation_id=request.conversation_id,
-            previous_response_id=request.previous_response_id,
         )
 
         logger.info(
@@ -62,13 +54,11 @@ def chat(
         )
 
         return ChatResponse(
-            response=result["response"],
-            response_id=result["response_id"],
+            response=response.text,
+            response_id=response.response_id,
         )
 
     except Exception as ex:
-
-        chat_errors_total.inc()
 
         logger.exception(
             "Chat request failed",
@@ -92,9 +82,6 @@ def stream_chat(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
-    chat_requests_total.inc()
-    messages_processed_total.inc()
-
     logger.info(
         "Streaming chat request received",
         extra={
@@ -105,16 +92,18 @@ def stream_chat(
 
     try:
 
-        generator = chat_service.stream(
-            db=db,
-            user_id=user["sub"],
-            message=request.message,
-            conversation_id=request.conversation_id,
-            previous_response_id=request.previous_response_id,
-        )
+        def event_stream():
+
+            for event in chat_service.stream(
+                db=db,
+                user_id=user["sub"],
+                message=request.message,
+                conversation_id=request.conversation_id,
+            ):
+                yield to_sse(event)
 
         return StreamingResponse(
-            generator,
+            event_stream(),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",
@@ -124,8 +113,6 @@ def stream_chat(
         )
 
     except Exception as ex:
-
-        chat_errors_total.inc()
 
         logger.exception(
             "Streaming chat request failed",

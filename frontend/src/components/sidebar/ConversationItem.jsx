@@ -1,33 +1,35 @@
-import {
-  ListItemButton,
-  ListItemText,
-} from "@mui/material";
+import { MessageSquare } from "lucide-react";
 
-function ConversationItem({
+export default function ConversationItem({
   conversation,
-  selected,
   onClick,
+  isActive,
 }) {
   return (
-    <ListItemButton
-      selected={selected}
-      onClick={onClick}
-      sx={{
-        mx: 1,
-        mb: 0.5,
-        borderRadius: 2,
-      }}
+    <button
+      onClick={() => onClick?.(conversation)}
+      className={`
+        flex
+        w-full
+        items-center
+        gap-2
+        rounded-lg
+        px-3
+        py-2
+        text-sm
+        transition
+        ${
+          isActive
+            ? "bg-accent font-medium"
+            : "hover:bg-accent"
+        }
+      `}
     >
-      <ListItemText
-        primary={conversation.title}
-        primaryTypographyProps={{
-          noWrap: true,
-          fontSize: 14,
-          fontWeight: 500,
-        }}
-      />
-    </ListItemButton>
+      <MessageSquare className="h-4 w-4 shrink-0" />
+
+      <span className="truncate">
+        {conversation.title}
+      </span>
+    </button>
   );
 }
-
-export default ConversationItem;

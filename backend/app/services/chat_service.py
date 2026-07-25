@@ -1,64 +1,52 @@
-import json
 import logging
-import time
-from typing import Generator
+from collections.abc import Generator
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.core.openai_client import client
+from app.ai.builders.conversation_builder import ConversationBuilder
+from app.ai.factory import AIProviderFactory
+from app.ai.models import (
+    AIResponse,
+    AIStreamEvent,
+)
 from app.metrics.metrics import (
-    completion_tokens_total,
-    openai_errors_total,
-    openai_latency_seconds,
-    openai_requests_total,
-    prompt_tokens_total,
-    total_tokens_total,
+    chat_errors_total,
+    chat_requests_total,
+    messages_processed_total,
 )
 from app.services.conversation_service import conversation_service
 
 logger = logging.getLogger(__name__)
 
 
-SYSTEM_PROMPT = """
-You are Enterprise AI Copilot.
-
-You assist:
-
-- Product Owners
-- Scrum Masters
-- Project Managers
-- Business Analysts
-- Solution Architects
-- Developers
-
-Always:
-
-- Be professional
-- Be concise
-- Explain step by step
-- Generate Jira user stories
-- Generate acceptance criteria
-- Generate meeting summaries
-- Help with AI, SAP, AEM, APIs and Agile.
-"""
-
-
 class ChatService:
+    """
+    Provider-agnostic chat orchestration service.
+
+    Responsibilities:
+
+    - Validate conversation ownership
+    - Persist user messages
+    - Build conversation history
+    - Delegate inference to the configured AI provider
+    - Persist assistant responses
+    """
+
+    def __init__(self) -> None:
+        self.provider = AIProviderFactory.get_provider()
+        self.builder = ConversationBuilder()
 
     # --------------------------------------------------
-    # Validate conversation ownership
+    # Validation
     # --------------------------------------------------
+
     def _validate_conversation(
         self,
         db: Session,
         conversation_id: UUID,
         user_id: str,
     ) -> None:
-        """
-        Ensures the conversation belongs to the authenticated user.
-        Raises if the conversation doesn't exist or is not owned by the user.
-        """
 
         conversation = conversation_service.get_conversation(
             db=db,
@@ -67,29 +55,124 @@ class ChatService:
         )
 
         if conversation is None:
-            raise ValueError("Conversation not found or access denied")
+            raise ValueError(
+                "Conversation not found or access denied."
+            )
 
     # --------------------------------------------------
-    # Synchronous Chat Endpoint
+    # Helpers
     # --------------------------------------------------
+
+    def _load_conversation(
+        self,
+        db: Session,
+        conversation_id: UUID,
+        user_id: str,
+    ):
+
+        history = conversation_service.get_messages(
+            db=db,
+            conversation_id=conversation_id,
+            user_id=user_id,
+        )
+
+        return self.builder.build(history)
+
+    def _save_user_message(
+        self,
+        db: Session,
+        conversation_id: UUID,
+        user_id: str,
+        message: str,
+    ) -> None:
+
+        conversation_service.save_user_message(
+            db=db,
+            conversation_id=conversation_id,
+            content=message,
+        )
+
+        conversation_service.touch_conversation(
+            db=db,
+            conversation_id=conversation_id,
+            user_id=user_id,
+        )
+
+    def _save_assistant_message(
+        self,
+        db: Session,
+        conversation_id: UUID,
+        user_id: str,
+        response: AIResponse,
+    ) -> None:
+
+        conversation_service.save_assistant_message(
+            db=db,
+            conversation_id=conversation_id,
+            content=response.text,
+            response_id=response.response_id,
+        )
+
+        conversation_service.touch_conversation(
+            db=db,
+            conversation_id=conversation_id,
+            user_id=user_id,
+        )
+    # --------------------------------------------------
+    # Synchronous Chat
+    # --------------------------------------------------
+
     def ask(
         self,
         db: Session,
         user_id: str,
         message: str,
         conversation_id: UUID | None = None,
-        previous_response_id: str | None = None,
-    ):
+    ) -> AIResponse:
+        """
+        Process a synchronous chat request.
+
+        Flow:
+
+            Validate Conversation
+                    ↓
+             Save User Message
+                    ↓
+            Load Conversation History
+                    ↓
+          Build AI Conversation Messages
+                    ↓
+              Invoke AI Provider
+                    ↓
+          Save Assistant Response
+                    ↓
+              Return AIResponse
+        """
 
         logger.info(
-            "incoming_chat_request",
-            extra={"user_id": user_id},
+            "chat_request_started",
+            extra={
+                "user_id": user_id,
+                "conversation_id": (
+                    str(conversation_id)
+                    if conversation_id
+                    else None
+                ),
+            },
         )
 
-        # ------------------------------------------
-        # Validate ownership + Save user message
-        # ------------------------------------------
-        if conversation_id:
+        chat_requests_total.inc()
+        messages_processed_total.inc()
+
+        try:
+
+            # ------------------------------------------
+            # Validate conversation
+            # ------------------------------------------
+            if conversation_id is None:
+                raise ValueError(
+                    "conversation_id is required."
+                )
 
             self._validate_conversation(
                 db=db,
@@ -97,131 +180,118 @@ class ChatService:
                 user_id=user_id,
             )
 
-            conversation_service.save_user_message(
+            # ------------------------------------------
+            # Save user message
+            # ------------------------------------------
+            self._save_user_message(
                 db=db,
                 conversation_id=conversation_id,
-                content=message,
+                user_id=user_id,
+                message=message,
             )
 
-            conversation_service.touch_conversation(
+            # ------------------------------------------
+            # Build conversation
+            # ------------------------------------------
+            conversation = self._load_conversation(
                 db=db,
                 conversation_id=conversation_id,
                 user_id=user_id,
             )
 
-        try:
-
-            start = time.perf_counter()
-
-            if previous_response_id:
-
-                response = client.responses.create(
-                    model="gpt-4.1-mini",
-                    previous_response_id=previous_response_id,
-                    input=message,
-                )
-
-            else:
-
-                response = client.responses.create(
-                    model="gpt-4.1-mini",
-                    instructions=SYSTEM_PROMPT,
-                    input=message,
-                )
-
-            latency = time.perf_counter() - start
-
-            openai_requests_total.inc()
-            openai_latency_seconds.observe(latency)
-
-            usage = getattr(response, "usage", None)
-
-            if usage:
-
-                prompt_tokens = usage.input_tokens
-                completion_tokens = usage.output_tokens
-                total_tokens = usage.total_tokens
-
-                prompt_tokens_total.inc(prompt_tokens)
-                completion_tokens_total.inc(completion_tokens)
-                total_tokens_total.inc(total_tokens)
-
-                logger.info(
-                    "openai_usage",
-                    extra={
-                        "user_id": user_id,
-                        "model": "gpt-4.1-mini",
-                        "latency_seconds": round(latency, 3),
-                        "prompt_tokens": prompt_tokens,
-                        "completion_tokens": completion_tokens,
-                        "total_tokens": total_tokens,
-                    },
-                )
+            # ------------------------------------------
+            # Generate AI response
+            # ------------------------------------------
+            response = self.provider.ask(
+                messages=conversation,
+            )
 
             # ------------------------------------------
-            # Save assistant message
+            # Save assistant response
             # ------------------------------------------
-            if conversation_id:
-
-                conversation_service.save_assistant_message(
-                    db=db,
-                    conversation_id=conversation_id,
-                    content=response.output_text,
-                    response_id=response.id,
-                )
-
-                conversation_service.touch_conversation(
-                    db=db,
-                    conversation_id=conversation_id,
-                    user_id=user_id,
-                )
+            self._save_assistant_message(
+                db=db,
+                conversation_id=conversation_id,
+                user_id=user_id,
+                response=response,
+            )
 
             logger.info(
-                "openai_request_completed",
+                "chat_request_completed",
                 extra={
                     "user_id": user_id,
-                    "model": "gpt-4.1-mini",
-                    "latency_seconds": round(latency, 3),
+                    "conversation_id": str(conversation_id),
+                    "model": response.model,
+                    "latency_seconds": round(
+                        response.latency_seconds,
+                        3,
+                    ),
                 },
             )
 
-            return {
-                "response": response.output_text,
-                "response_id": response.id,
-            }
+            return response
 
         except Exception:
 
-            openai_errors_total.inc()
+            chat_errors_total.inc()
 
             logger.exception(
-                "openai_request_failed",
-                extra={"user_id": user_id},
+                "chat_request_failed",
+                extra={
+                    "user_id": user_id,
+                    "conversation_id": (
+                        str(conversation_id)
+                        if conversation_id
+                        else None
+                    ),
+                },
             )
 
             raise
+    # --------------------------------------------------
+    # Streaming Chat
+    # --------------------------------------------------
 
-    # --------------------------------------------------
-    # Streaming Endpoint
-    # --------------------------------------------------
     def stream(
         self,
         db: Session,
         user_id: str,
         message: str,
         conversation_id: UUID | None = None,
-        previous_response_id: str | None = None,
-    ) -> Generator[str, None, None]:
+    ) -> Generator[AIStreamEvent, None, None]:
+        """
+        Stream a response from the configured AI provider.
+        """
 
         logger.info(
-            "streaming_request_started",
-            extra={"user_id": user_id},
+            "stream_request_started",
+            extra={
+                "user_id": user_id,
+                "conversation_id": (
+                    str(conversation_id)
+                    if conversation_id
+                    else None
+                ),
+            },
         )
 
-        # ------------------------------------------
-        # Validate ownership + Save user message
-        # ------------------------------------------
-        if conversation_id:
+        chat_requests_total.inc()
+        messages_processed_total.inc()
+
+        assistant_text = ""
+        final_response_id = None
+        final_model = ""
+        final_usage = None
+
+        try:
+
+            # ------------------------------------------
+            # Validate conversation
+            # ------------------------------------------
+            if conversation_id is None:
+                raise ValueError(
+                    "conversation_id is required."
+                )
 
             self._validate_conversation(
                 db=db,
@@ -229,129 +299,91 @@ class ChatService:
                 user_id=user_id,
             )
 
-            conversation_service.save_user_message(
+            # ------------------------------------------
+            # Save user message
+            # ------------------------------------------
+            self._save_user_message(
                 db=db,
                 conversation_id=conversation_id,
-                content=message,
+                user_id=user_id,
+                message=message,
             )
 
-            conversation_service.touch_conversation(
+            # ------------------------------------------
+            # Build conversation
+            # ------------------------------------------
+            conversation = self._load_conversation(
                 db=db,
                 conversation_id=conversation_id,
                 user_id=user_id,
             )
 
-        try:
+            # ------------------------------------------
+            # Stream AI response
+            # ------------------------------------------
+            for event in self.provider.stream(
+                messages=conversation,
+            ):
 
-            openai_requests_total.inc()
+                if event.text:
+                    assistant_text += event.text
 
-            yield f"data: {json.dumps({'type': 'start'})}\n\n"
+                if event.response_id:
+                    final_response_id = event.response_id
 
-            start = time.perf_counter()
+                if event.model:
+                    final_model = event.model
 
-            if previous_response_id:
+                if event.usage:
+                    final_usage = event.usage
 
-                stream = client.responses.create(
-                    model="gpt-4.1-mini",
-                    previous_response_id=previous_response_id,
-                    input=message,
-                    stream=True,
-                )
+                yield event
 
-            else:
+            # ------------------------------------------
+            # Save assistant message
+            # ------------------------------------------
+            response = AIResponse(
+                text=assistant_text,
+                response_id=final_response_id,
+                model=final_model,
+                usage=final_usage,
+            )
 
-                stream = client.responses.create(
-                    model="gpt-4.1-mini",
-                    instructions=SYSTEM_PROMPT,
-                    input=message,
-                    stream=True,
-                )
-
-            response_id = None
-            assistant_text = ""
-
-            for event in stream:
-
-                if hasattr(event, "response") and event.response:
-                    response_id = getattr(
-                        event.response,
-                        "id",
-                        response_id,
-                    )
-
-                if event.type == "response.output_text.delta":
-
-                    assistant_text += event.delta
-
-                    yield (
-                        f"data: {json.dumps({'type': 'delta', 'text': event.delta})}\n\n"
-                    )
-
-                elif event.type == "response.completed":
-
-                    latency = time.perf_counter() - start
-
-                    openai_latency_seconds.observe(latency)
-
-                    logger.info(
-                        "stream_completed",
-                        extra={
-                            "user_id": user_id,
-                            "model": "gpt-4.1-mini",
-                            "latency_seconds": round(latency, 3),
-                        },
-                    )
-
-                elif event.type == "response.created":
-                    logger.info("stream_created")
-
-                elif event.type == "response.failed":
-                    openai_errors_total.inc()
-                    logger.error("stream_failed")
-
-                elif event.type == "error":
-                    openai_errors_total.inc()
-                    logger.error(
-                        "stream_error",
-                        extra={"error": str(event)},
-                    )
-
-            if conversation_id:
-
-                conversation_service.save_assistant_message(
-                    db=db,
-                    conversation_id=conversation_id,
-                    content=assistant_text,
-                    response_id=response_id,
-                )
-
-                conversation_service.touch_conversation(
-                    db=db,
-                    conversation_id=conversation_id,
-                    user_id=user_id,
-                )
-
-            yield (
-                f"data: {json.dumps({'type': 'completed', 'response_id': response_id})}\n\n"
+            self._save_assistant_message(
+                db=db,
+                conversation_id=conversation_id,
+                user_id=user_id,
+                response=response,
             )
 
             logger.info(
-                "streaming_request_completed",
-                extra={"user_id": user_id},
+                "stream_request_completed",
+                extra={
+                    "user_id": user_id,
+                    "conversation_id": str(conversation_id),
+                    "model": final_model,
+                },
             )
 
-        except Exception as ex:
+        except Exception:
 
-            openai_errors_total.inc()
+            chat_errors_total.inc()
 
             logger.exception(
-                "streaming_request_failed",
-                extra={"user_id": user_id},
+                "stream_request_failed",
+                extra={
+                    "user_id": user_id,
+                    "conversation_id": (
+                        str(conversation_id)
+                        if conversation_id
+                        else None
+                    ),
+                },
             )
 
-            yield (
-                f"data: {json.dumps({'type': 'error', 'message': str(ex)})}\n\n"
-            )
-
+            raise
+# --------------------------------------------------
+# Singleton
+# --------------------------------------------------
 
 chat_service = ChatService()

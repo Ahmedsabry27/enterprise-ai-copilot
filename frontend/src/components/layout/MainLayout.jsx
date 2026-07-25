@@ -1,67 +1,94 @@
-import { Box } from "@mui/material";
+import { useState } from "react";
 
-import Header from "./Header";
+import {
+  SidebarProvider,
+  SidebarInset,
+} from "@/components/ui/sidebar";
+
 import Sidebar from "../sidebar/Sidebar";
+import Header from "./Header";
+import ChatWindow from "../chat/ChatWindow";
+import Composer from "../chat/Composer";
 
-function MainLayout({
-  children,
-  conversations,
-  selectedConversationId,
-  onConversationSelect,
-  onNewChat,
-}) {
+import useConversations from "../../hooks/useConversation";
+
+import {
+  getConversationMessages,
+} from "../../services/conversationService";
+
+export default function MainLayout() {
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [conversationId, setConversationId] = useState(null);
+
+  // Load conversations for the sidebar
+  const {
+    conversations,
+    loading: conversationsLoading,
+    refreshConversations,
+  } = useConversations();
+
+  /**
+   * Start a new conversation
+   */
+  function handleNewChat() {
+    setMessages([]);
+    setConversationId(null);
+  }
+
+  /**
+   * Load a conversation when the user clicks it
+   */
+  async function handleConversationSelect(conversation) {
+    console.log("🟢 Conversation clicked:", conversation);
+
+    try {
+      setLoading(true);
+
+      const data = await getConversationMessages(conversation.id);
+
+      console.log("📨 API Response:", data);
+
+      setConversationId(conversation.id);
+      setMessages(data);
+
+      console.log("✅ Messages loaded successfully");
+    } catch (error) {
+      console.error("❌ Failed to load conversation:", error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <Box
-      sx={{
-        display: "flex",
-        width: "100vw",
-        height: "100vh",
-        overflow: "hidden",
-        bgcolor: "#F5F7FA",
-      }}
-    >
+    <SidebarProvider>
       <Sidebar
         conversations={conversations}
-        selectedConversationId={selectedConversationId}
-        onConversationSelect={onConversationSelect}
-        onNewChat={onNewChat}
+        loading={conversationsLoading}
+        onConversationSelect={handleConversationSelect}
+        onNewChat={handleNewChat}
+        conversationId={conversationId}
       />
 
-      {/* Right Side */}
-      <Box
-        sx={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-
-          // IMPORTANT
-          minWidth: 0,
-          minHeight: 0,
-
-          overflow: "hidden",
-        }}
-      >
+      <SidebarInset className="flex h-screen flex-col">
         <Header />
 
-        {/* Chat Area */}
-        <Box
-          sx={{
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
+        <main className="flex flex-1 flex-col overflow-hidden">
+          <ChatWindow
+            messages={messages}
+            loading={loading}
+          />
 
-            // IMPORTANT
-            minWidth: 0,
-            minHeight: 0,
-
-            overflow: "hidden",
-          }}
-        >
-          {children}
-        </Box>
-      </Box>
-    </Box>
+          <Composer
+            setMessages={setMessages}
+            loading={loading}
+            setLoading={setLoading}
+            conversationId={conversationId}
+            setConversationId={setConversationId}
+            refreshConversations={refreshConversations}
+          />
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }
-
-export default MainLayout;

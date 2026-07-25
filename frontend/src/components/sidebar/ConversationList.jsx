@@ -1,67 +1,53 @@
-import {
-  List,
-  Typography,
-  Box,
-} from "@mui/material";
-
-import ConversationItem from "./ConversationItem";
 import groupConversations from "../../utils/groupConversations";
+import ConversationItem from "./ConversationItem";
 
-function ConversationList({
+export default function ConversationList({
   conversations = [],
-  selectedId,
-  onSelect,
+  loading = false,
+  onConversationSelect,
+  conversationId,
 }) {
-  const groups =
-    groupConversations(conversations);
+  if (loading) {
+    return (
+      <div className="px-3 py-4 text-sm text-muted-foreground">
+        Loading conversations...
+      </div>
+    );
+  }
+
+  // Safety check
+  if (!Array.isArray(conversations) || conversations.length === 0) {
+    return (
+      <div className="px-3 py-4 text-sm text-muted-foreground">
+        No conversations yet
+      </div>
+    );
+  }
+
+  const groups = groupConversations(conversations);
 
   return (
-    <List
-      sx={{
-        flex: 1,
-        overflowY: "auto",
-        p: 0,
-      }}
-    >
-      {Object.entries(groups).map(
-        ([title, items]) => {
-          if (items.length === 0) return null;
+    <div className="px-3">
+      {Object.entries(groups).map(([groupName, items]) => {
+        if (!items?.length) return null;
 
-          return (
-            <Box key={title}>
-              <Typography
-                sx={{
-                  px: 2,
-                  py: 1.5,
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: "text.secondary",
-                  textTransform: "uppercase",
-                  letterSpacing: 1,
-                }}
-              >
-                {title}
-              </Typography>
+        return (
+          <div key={groupName} className="mb-5">
+            <p className="mb-2 text-xs font-semibold text-muted-foreground">
+              {groupName}
+            </p>
 
-              {items.map((conversation) => (
-                <ConversationItem
-                  key={conversation.id}
-                  conversation={conversation}
-                  selected={
-                    selectedId ===
-                    conversation.id
-                  }
-                  onClick={() =>
-                    onSelect(conversation)
-                  }
-                />
-              ))}
-            </Box>
-          );
-        }
-      )}
-    </List>
+            {items.map((conversation) => (
+              <ConversationItem
+                key={conversation.id}
+                conversation={conversation}
+                onClick={onConversationSelect}
+                isActive={conversation.id === conversationId}
+              />
+            ))}
+          </div>
+        );
+      })}
+    </div>
   );
 }
-
-export default ConversationList;
