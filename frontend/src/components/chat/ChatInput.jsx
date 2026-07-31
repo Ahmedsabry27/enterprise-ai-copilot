@@ -1,27 +1,21 @@
 import { useState } from "react";
 
 import {
-  Box,
-  IconButton,
-  Paper,
-  TextField,
-  Tooltip,
-} from "@mui/material";
+  Send,
+  Square,
+} from "lucide-react";
 
-import SendIcon from "@mui/icons-material/Send";
-import StopCircleIcon from "@mui/icons-material/StopCircle";
 
-function ChatInput({
+export default function ChatInput({
   onSend,
   onStop,
   loading,
 }) {
 
+
   const [message, setMessage] = useState("");
 
-  // --------------------------------------------------
-  // Send
-  // --------------------------------------------------
+
 
   async function send() {
 
@@ -29,24 +23,23 @@ function ChatInput({
 
     if (!text) return;
 
+
     setMessage("");
 
     await onSend?.(text);
 
   }
 
-  // --------------------------------------------------
-  // Keyboard
-  // --------------------------------------------------
 
-  function handleKeyDown(event) {
 
-    if (
-      event.key === "Enter" &&
-      !event.shiftKey
-    ) {
+  function handleKeyDown(e){
 
-      event.preventDefault();
+    if(
+      e.key === "Enter" &&
+      !e.shiftKey
+    ){
+
+      e.preventDefault();
 
       send();
 
@@ -54,88 +47,204 @@ function ChatInput({
 
   }
 
+
+
   return (
 
-    <Box
-      sx={{
-        flexShrink: 0,
-        bgcolor: "#fff",
-        borderTop: "1px solid rgba(0,0,0,.08)",
-        p: 2,
-      }}
+    <div
+      className="
+        fixed
+        bottom-8
+        left-1/2
+        z-50
+        w-[65%]
+        -translate-x-1/2
+      "
     >
 
-      <Paper
-        elevation={0}
-        sx={{
-          p: 2,
-          borderRadius: 3,
-          border: "1px solid #E5E7EB",
-        }}
+
+      <div
+        className="
+          flex
+          items-end
+          gap-4
+
+          rounded-3xl
+
+          border
+          border-white/10
+
+          bg-white/10
+
+          px-5
+          py-4
+
+          backdrop-blur-2xl
+
+          shadow-2xl
+
+        "
       >
 
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "flex-end",
-            gap: 2,
-          }}
-        >
 
-          <TextField
-            fullWidth
-            multiline
-            maxRows={6}
-            placeholder="Ask Enterprise AI Copilot..."
-            value={message}
-            disabled={loading}
-            onChange={(e) =>
-              setMessage(e.target.value)
-            }
-            onKeyDown={handleKeyDown}
-          />
 
-          {loading ? (
+        {/* Input */}
 
-            <Tooltip title="Stop">
 
-              <IconButton
-                color="error"
-                onClick={onStop}
-              >
-                <StopCircleIcon />
-              </IconButton>
+        <textarea
 
-            </Tooltip>
+          rows={1}
+
+          value={message}
+
+          disabled={loading}
+
+          onChange={(e)=>
+            setMessage(e.target.value)
+          }
+
+          onKeyDown={handleKeyDown}
+
+          placeholder="
+            Ask Enterprise AI Copilot...
+          "
+
+          className="
+            flex-1
+
+            resize-none
+
+            bg-transparent
+
+            outline-none
+
+            text-white
+
+            placeholder:text-slate-400
+
+            max-h-32
+
+            text-sm
+
+          "
+
+        />
+
+
+
+
+
+
+        {/* Action Button */}
+
+
+        {
+          loading ? (
+
+
+            <button
+
+              onClick={onStop}
+
+              className="
+                flex
+                h-11
+                w-11
+                items-center
+                justify-center
+
+                rounded-full
+
+                bg-red-500/20
+
+                text-red-300
+
+                border
+                border-red-400/20
+
+                transition
+
+                hover:bg-red-500/30
+
+              "
+
+            >
+
+              <Square
+                size={18}
+                fill="currentColor"
+              />
+
+
+            </button>
+
+
 
           ) : (
 
-            <Tooltip title="Send">
 
-              <span>
+            <button
 
-                <IconButton
-                  color="primary"
-                  disabled={!message.trim()}
-                  onClick={send}
-                >
-                  <SendIcon />
-                </IconButton>
+              disabled={!message.trim()}
 
-              </span>
+              onClick={send}
 
-            </Tooltip>
 
-          )}
+              className="
+                flex
+                h-11
+                w-11
+                items-center
+                justify-center
 
-        </Box>
+                rounded-full
 
-      </Paper>
+                bg-gradient-to-br
 
-    </Box>
+                from-blue-500
+
+                to-purple-500
+
+
+                text-white
+
+
+                shadow-lg
+
+
+                transition
+
+
+                disabled:
+                opacity-40
+
+
+                hover:
+                scale-105
+
+              "
+
+            >
+
+
+              <Send size={20}/>
+
+
+            </button>
+
+
+
+          )
+        }
+
+
+
+      </div>
+
+
+
+    </div>
 
   );
 
 }
-
-export default ChatInput;

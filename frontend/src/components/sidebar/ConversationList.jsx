@@ -17,12 +17,30 @@ export default function ConversationList({
 
   // Safety check
   if (!Array.isArray(conversations) || conversations.length === 0) {
+
     return (
-      <div className="px-3 py-4 text-sm text-muted-foreground">
+
+      <div
+        className="
+          px-4
+          py-6
+          text-center
+          text-sm
+          text-muted-foreground
+        "
+      >
+
         No conversations yet
+
+        <br />
+
+        Start a new AI workflow 🚀
+
       </div>
+
     );
-  }
+
+}
 
   const groups = groupConversations(conversations);
 

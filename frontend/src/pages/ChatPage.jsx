@@ -1,50 +1,62 @@
 import { useEffect } from "react";
-import { Box } from "@mui/material";
 
-import MainLayout from "../components/layout/MainLayout";
 import ChatWindow from "../components/chat/ChatWindow";
 import ChatInput from "../components/chat/ChatInput";
 
 import useConversation from "../hooks/useConversation";
 import useChat from "../hooks/useChat";
 
-function ChatPage() {
 
-  // --------------------------------------------------
-  // Hooks
-  // --------------------------------------------------
+export default function ChatPage() {
 
-  const conversation = useConversation();
-  const chat = useChat(conversation);
 
-  // --------------------------------------------------
-  // Load Selected Conversation
-  // --------------------------------------------------
+  const conversation =
+    useConversation();
+
+
+  const chat =
+    useChat(conversation);
+
+
+
+  // ---------------------------------------
+  // Load selected conversation
+  // ---------------------------------------
 
   useEffect(() => {
 
-    async function syncConversation() {
+    async function loadConversation() {
 
       if (!conversation.selectedConversation) {
         return;
       }
+
 
       const messages =
         await conversation.openConversation(
           conversation.selectedConversation
         );
 
+
       chat.loadMessages(messages);
 
     }
 
-    syncConversation();
 
-  }, [conversation.selectedConversation]);
+    loadConversation();
 
-  // --------------------------------------------------
-  // Send Message
-  // --------------------------------------------------
+
+  }, [
+    conversation.selectedConversation
+  ]);
+
+
+
+
+
+  // ---------------------------------------
+  // Send message
+  // ---------------------------------------
 
   async function handleSend(message) {
 
@@ -52,9 +64,13 @@ function ChatPage() {
 
   }
 
-  // --------------------------------------------------
-  // New Chat
-  // --------------------------------------------------
+
+
+
+
+  // ---------------------------------------
+  // New chat
+  // ---------------------------------------
 
   function handleNewChat() {
 
@@ -64,62 +80,79 @@ function ChatPage() {
 
   }
 
-  // --------------------------------------------------
-  // Render
-  // --------------------------------------------------
+
+
+
 
   return (
 
-    <MainLayout
-
-      conversations={
-        conversation.conversations
-      }
-
-      selectedConversationId={
-        conversation.conversationId
-      }
-
-      onConversationSelect={
-        conversation.selectConversation
-      }
-
-      onNewChat={
-        handleNewChat
-      }
-
+    <div
+      className="
+        flex
+        h-full
+        flex-col
+        overflow-hidden
+      "
     >
 
-      <Box
-        sx={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          minWidth: 0,
-          minHeight: 0,
-          overflow: "hidden",
-          bgcolor: "#F5F7FA",
-        }}
+
+      {/* Chat Workspace */}
+
+      <section
+        className="
+          flex
+          flex-1
+          flex-col
+          overflow-hidden
+        "
       >
 
+
         <ChatWindow
-          messages={chat.messages}
-          loading={chat.loading}
-          onPromptClick={handleSend}
+
+          messages={
+            chat.messages
+          }
+
+
+          loading={
+            chat.loading
+          }
+
+
+          onPromptClick={
+            handleSend
+          }
+
         />
+
+
+
 
         <ChatInput
-          onSend={handleSend}
-          onStop={chat.stopGeneration}
-          loading={chat.loading}
+
+          onSend={
+            handleSend
+          }
+
+
+          onStop={
+            chat.stopGeneration
+          }
+
+
+          loading={
+            chat.loading
+          }
+
         />
 
-      </Box>
 
-    </MainLayout>
+      </section>
+
+
+    </div>
 
   );
 
 }
-
-export default ChatPage;

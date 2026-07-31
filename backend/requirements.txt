@@ -34,3 +34,8 @@ typing_extensions==4.16.0
 uvicorn==0.51.0
 python-jose[cryptography]==3.5.0
 boto3
+pytest
+pytest-asyncio
+pytest-cov
+ruff
+mypy

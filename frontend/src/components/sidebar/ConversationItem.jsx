@@ -1,35 +1,77 @@
 import { MessageSquare } from "lucide-react";
 
+
 export default function ConversationItem({
   conversation,
   onClick,
   isActive,
 }) {
+
+
   return (
+
     <button
-      onClick={() => onClick?.(conversation)}
+
+      onClick={() =>
+        onClick?.(conversation)
+      }
+
+
       className={`
+        group
         flex
         w-full
         items-center
-        gap-2
-        rounded-lg
+        gap-3
+        rounded-xl
         px-3
-        py-2
+        py-3
         text-sm
         transition
+
         ${
           isActive
-            ? "bg-accent font-medium"
+            ? "bg-accent font-semibold"
             : "hover:bg-accent"
         }
       `}
-    >
-      <MessageSquare className="h-4 w-4 shrink-0" />
 
-      <span className="truncate">
-        {conversation.title}
+    >
+
+
+      <MessageSquare
+
+        className="
+          h-4
+          w-4
+          shrink-0
+          text-muted-foreground
+        "
+
+      />
+
+
+
+      <span
+
+        className="
+          truncate
+          text-left
+        "
+
+      >
+
+        {
+          conversation.title ||
+          "New Conversation"
+        }
+
+
       </span>
+
+
     </button>
+
   );
+
 }

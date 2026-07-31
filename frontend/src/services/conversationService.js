@@ -1,86 +1,199 @@
 import api from "./api";
 
-/**
- * Create a new conversation
- */
-export async function createConversation(title = "New Conversation") {
-  try {
-    const { data } = await api.post("/conversations", {
-      title,
-    });
 
-    return data;
-  } catch (error) {
-    console.error("Failed to create conversation:", error);
-    throw error;
-  }
+
+/**
+ * Create new conversation
+ */
+export async function createConversation(
+  title = "New Conversation"
+) {
+
+  const response =
+    await api.post(
+      "/conversations",
+      {
+        title,
+      }
+    );
+
+
+  return response.data;
+
 }
+
+
+
+
+
 
 /**
  * Get all conversations
  */
 export async function getConversations() {
-  try {
-    const { data } = await api.get("/conversations");
-    return data;
-  } catch (error) {
-    console.error("Failed to load conversations:", error);
-    throw error;
-  }
+
+
+  const response =
+    await api.get(
+      "/conversations"
+    );
+
+
+  return response.data;
+
+
 }
 
+
+
+
+
+
+
 /**
- * Get all messages for a conversation
+ * Get conversation details
  */
-export async function getConversationMessages(conversationId) {
-  try {
-    const { data } = await api.get(
+export async function getConversation(
+  conversationId
+){
+
+  const response =
+    await api.get(
+      `/conversations/${conversationId}`
+    );
+
+
+  return response.data;
+
+}
+
+
+
+
+
+
+
+
+/**
+ * Get messages inside conversation
+ */
+export async function getConversationMessages(
+  conversationId
+){
+
+  const response =
+    await api.get(
       `/conversations/${conversationId}/messages`
     );
 
-    return data;
-  } catch (error) {
-    console.error(
-      `Failed to load messages for conversation ${conversationId}:`,
-      error
-    );
-    throw error;
-  }
+
+  return response.data;
+
 }
 
+
+
+
+
+
+
+
 /**
- * Rename a conversation
+ * Update conversation title
  */
-export async function renameConversation(conversationId, title) {
-  try {
-    const { data } = await api.patch(
+export async function updateConversationTitle(
+  conversationId,
+  title
+){
+
+  const response =
+    await api.patch(
       `/conversations/${conversationId}`,
       {
         title,
       }
     );
 
-    return data;
-  } catch (error) {
-    console.error(
-      `Failed to rename conversation ${conversationId}:`,
-      error
-    );
-    throw error;
-  }
+
+  return response.data;
+
 }
 
+
+
+
+
+
+
 /**
- * Delete a conversation
+ * Delete conversation
  */
-export async function deleteConversation(conversationId) {
-  try {
-    await api.delete(`/conversations/${conversationId}`);
-  } catch (error) {
-    console.error(
-      `Failed to delete conversation ${conversationId}:`,
-      error
+export async function deleteConversation(
+  conversationId
+){
+
+
+  const response =
+    await api.delete(
+      `/conversations/${conversationId}`
     );
-    throw error;
-  }
+
+
+  return response.data;
+
+
+}
+
+
+
+
+
+
+
+/**
+ * Archive conversation
+ * (future enterprise feature)
+ */
+export async function archiveConversation(
+  conversationId
+){
+
+  const response =
+    await api.patch(
+      `/conversations/${conversationId}/archive`
+    );
+
+
+  return response.data;
+
+}
+
+
+
+
+
+
+
+/**
+ * Search conversations
+ * (future enterprise feature)
+ */
+export async function searchConversations(
+  query
+){
+
+
+  const response =
+    await api.get(
+      "/conversations/search",
+      {
+        params:{
+          q:query
+        }
+      }
+    );
+
+
+  return response.data;
+
 }

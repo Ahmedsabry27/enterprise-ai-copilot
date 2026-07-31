@@ -5,20 +5,28 @@ from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from sqlalchemy import text
-
+from app.api.routers.dashboard import router as dashboard_router
+from app.api.routers.workflows import router as workflows_router
 from app.api.auth import router as auth_router
+from app.api.audit import router as audit_router
+from app.api.operations import router as operations_router
+from app.api.management import router as management_router
 from app.api.chat import router as chat_router
 from app.api.conversation import router as conversation_router
+from app.api.runtime import router as runtime_router
 from app.database.base import Base
 from app.database.session import engine
 from app.logging.logger import logger
 from app.logging.middleware import LoggingMiddleware
 from app.metrics.db_metrics import setup_database_metrics
-
 # Import models so SQLAlchemy registers them
 from app.models.conversation import Conversation  # noqa: F401
 from app.models.message import Message  # noqa: F401
-
+from app.models.runtime_execution import RuntimeExecution  # noqa: F401
+from app.database.models.agent import Agent  # noqa: F401
+from app.database.models.workflow import Workflow  # noqa: F401
+from app.database.models.action import Action  # noqa: F401
+from app.database.models.knowledge_source import KnowledgeSource  # noqa: F401
 
 # Prevent duplicate SQLAlchemy event registration
 _db_metrics_initialized = False
@@ -103,8 +111,12 @@ app.add_middleware(LoggingMiddleware)
 app.include_router(auth_router, tags=["Authentication"])
 app.include_router(chat_router, tags=["Chat"])
 app.include_router(conversation_router, tags=["Conversations"])
-
-
+app.include_router(runtime_router)
+app.include_router(audit_router)
+app.include_router(operations_router)
+app.include_router(management_router)
+app.include_router(dashboard_router)
+app.include_router(workflows_router)
 # --------------------------------------------------
 # Root Endpoint
 # --------------------------------------------------

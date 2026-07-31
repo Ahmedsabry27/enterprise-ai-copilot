@@ -1,5 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+
 import "./config/amplify";
 import "./index.css";
 
@@ -11,11 +12,29 @@ import "@fontsource/inter";
 import App from "./App";
 import theme from "./theme";
 
-ReactDOM.createRoot(document.getElementById("root")).render(
+import QueryProvider from "./providers/QueryProvider";
+
+
+ReactDOM.createRoot(
+  document.getElementById("root")
+).render(
+
   <ThemeProvider theme={theme}>
+
     <CssBaseline />
-    <TooltipProvider>
-      <App />
-    </TooltipProvider>
+
+
+    <QueryProvider>
+
+      <TooltipProvider>
+
+        <App />
+
+      </TooltipProvider>
+
+    </QueryProvider>
+
+
   </ThemeProvider>
+
 );

@@ -1,50 +1,100 @@
 import { useEffect, useState } from "react";
-import MainLayout from "./components/layout/MainLayout";
-import { currentUser, login } from "./services/auth";
+
+import {
+  RouterProvider
+} from "react-router-dom";
+
+import {
+  router
+} from "./app/router";
+
+import {
+  currentUser,
+  login
+} from "./services/auth";
+
 
 function App() {
+
   const [loading, setLoading] = useState(true);
 
+
   useEffect(() => {
+
     const checkAuthentication = async () => {
+
       try {
-        // Check whether the user already has a valid session
+
         await currentUser();
 
-        // User is authenticated
         setLoading(false);
+
       } catch (error) {
-        console.log("User not authenticated. Redirecting to Cognito...");
+
+        console.log(
+          "User not authenticated. Redirecting..."
+        );
+
 
         try {
+
           await login();
+
         } catch (loginError) {
-          console.error("Login redirect failed:", loginError);
+
+          console.error(
+            "Login failed:",
+            loginError
+          );
+
           setLoading(false);
+
         }
+
       }
+
     };
 
+
     checkAuthentication();
+
   }, []);
 
+
+
   if (loading) {
+
     return (
+
       <div className="flex h-screen items-center justify-center">
+
         <div className="text-center">
+
           <h1 className="text-2xl font-semibold">
             Enterprise AI Copilot
           </h1>
 
-          <p className="mt-4 text-muted-foreground">
+
+          <p className="mt-4">
             Authenticating...
           </p>
+
+
         </div>
+
       </div>
+
     );
+
   }
 
-  return <MainLayout />;
+
+
+  return (
+    <RouterProvider router={router}/>
+  );
+
 }
+
 
 export default App;

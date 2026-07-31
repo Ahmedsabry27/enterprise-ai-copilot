@@ -1,358 +1,128 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { streamMessage } from "../api/chatApi";
-
-import {
-  updateConversationTitle,
-} from "../api/conversationApi";
-
+import { updateConversationTitle } from "../api/conversationApi";
+import { startExecution } from "../services/chat.service";
+import { cancelRuntime, subscribeRuntime } from "../services/runtime.service";
 import createConversationTitle from "../utils/createConversationTitle";
 
+const timestamp = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+// The card renders supplied metadata only. These initial states let the user see
+// the planned lifecycle immediately, before the first SSE frame arrives.
+const initialRuntimeSteps = () => [
+  { id: "Request Received", name: "Request Received", description: "User prompt received", status: "completed", timestamp: new Date().toISOString() },
+  { id: "Conversation API", name: "Conversation API", description: "Loading conversation context", status: "running", timestamp: new Date().toISOString() },
+  { id: "Planner", name: "Planner", description: "Waiting to create execution plan", status: "pending" },
+  { id: "Agent Execution", name: "Agent Execution", description: "Waiting for agent selection", status: "pending" },
+  { id: "Generate Report Action", name: "Generate Report Action", description: "Waiting to execute enterprise action", status: "pending" },
+  { id: "Result Generated", name: "Result Generated", description: "Waiting for final response", status: "pending" },
+];
+
 export default function useChat(conversation) {
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [responseId, setResponseId] = useState(null);
+  const runtimeRef = useRef(null);
+  const executionRef = useRef(null);
 
-  // --------------------------------------------------
-  // State
-  // --------------------------------------------------
-
-  const [messages, setMessages] =
-    useState([]);
-
-  const [loading, setLoading] =
-    useState(false);
-
-  const [responseId, setResponseId] =
-    useState(null);
-
-  const controllerRef =
-    useRef(null);
-
-  // --------------------------------------------------
-  // Helpers
-  // --------------------------------------------------
-
-  const getTimestamp = () =>
-    new Date().toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-
-  // --------------------------------------------------
-  // Load Existing Messages
-  // --------------------------------------------------
-
-  function loadMessages(existingMessages) {
-
-    setMessages(existingMessages);
-
-    const lastAssistant =
-      [...existingMessages]
-        .reverse()
-        .find(
-          message =>
-            message.role === "assistant"
-        );
-
-    if (lastAssistant?.response_id) {
-
-      setResponseId(
-        lastAssistant.response_id
-      );
-
-    } else {
-
-      setResponseId(null);
-
-    }
-
+  function loadMessages(data) {
+    setMessages(data || []);
+    setResponseId([...(data || [])].reverse().find((message) => message.role === "assistant")?.response_id ?? null);
   }
 
-  // --------------------------------------------------
-  // Stream Message
-  // --------------------------------------------------
-
-  async function handleStream(
-    userMessage
-  ) {
-
-    if (!userMessage.trim()) {
-      return;
-    }
-
-    // ---------------------------------------------
-    // Ensure Conversation Exists
-    // ---------------------------------------------
-
-    const id =
-      await conversation.ensureConversation();
-
-    // ---------------------------------------------
-    // Rename Conversation
-    // (Only the first time)
-    // ---------------------------------------------
-
-    const currentConversation =
-      conversation.conversations.find(
-        c => c.id === id
-      );
-
-    if (
-      currentConversation &&
-      currentConversation.title ===
-        "New Conversation"
-    ) {
-
-      try {
-
-        const title =
-          createConversationTitle(
-            userMessage
-          );
-
-        await updateConversationTitle(
-          id,
-          title
-        );
-
-        await conversation.loadConversations();
-
-      } catch (error) {
-
-        console.error(
-          "Failed to update conversation title",
-          error
-        );
-
+  async function handleStream(userMessage) {
+    if (!userMessage?.trim() || loading) return;
+    let assistantId = null;
+    try {
+      runtimeRef.current?.();
+      const conversationId = await conversation.ensureConversation();
+      const active = conversation.conversations.find((item) => item.id === conversationId);
+      if (active?.title === "New Conversation") {
+        await updateConversationTitle(conversationId, createConversationTitle(userMessage));
+        await conversation.refreshConversations();
       }
 
-    }
-
-    // ---------------------------------------------
-    // Streaming
-    // ---------------------------------------------
-
-    const controller =
-      new AbortController();
-
-    controllerRef.current =
-      controller;
-
-    const user = {
-
-      id: crypto.randomUUID(),
-
-      role: "user",
-
-      text: userMessage,
-
-      timestamp: getTimestamp(),
-
-    };
-
-    const assistantId =
-      crypto.randomUUID();
-
-    const assistant = {
-
-      id: assistantId,
-
-      role: "assistant",
-
-      text: "",
-
-      timestamp: getTimestamp(),
-
-      isStreaming: true,
-
-    };
-
-    setMessages(prev => [
-      ...prev,
-      user,
-      assistant,
-    ]);
-
-    setLoading(true);
-
-    try {
-
-      await streamMessage({
-
-        message: userMessage,
-
-        conversationId: id,
-
-        previousResponseId:
-          responseId,
-
-        signal:
-          controller.signal,
-
-        onStart() {
-
-          console.log(
-            "Streaming started"
-          );
-
-        },
-
-        onDelta(chunk) {
-
-          setMessages(prev =>
-            prev.map(message =>
-              message.id === assistantId
-                ? {
-                    ...message,
-                    text:
-                      message.text +
-                      chunk,
-                  }
-                : message
-            )
-          );
-
-        },
-
-        async onCompleted(
-          newResponseId
-        ) {
-
-          if (newResponseId) {
-
-            setResponseId(
-              newResponseId
-            );
-
-          }
-
-          setMessages(prev =>
-            prev.map(message =>
-              message.id === assistantId
-                ? {
-                    ...message,
-                    isStreaming: false,
-                  }
-                : message
-            )
-          );
-
-          await conversation.loadConversations();
-
-        },
-
-        onError(errorMessage) {
-
-          setMessages(prev =>
-            prev.map(message =>
-              message.id === assistantId
-                ? {
-                    ...message,
-
-                    text:
-                      "❌ " +
-                      (
-                        errorMessage ||
-                        "Streaming failed."
-                      ),
-
-                    isStreaming: false,
-
-                  }
-                : message
-            )
-          );
-
-        },
-
-      });
-
+      assistantId = crypto.randomUUID();
+      setMessages((current) => [...current,
+        { id: crypto.randomUUID(), role: "user", text: userMessage, timestamp: timestamp() },
+        { id: assistantId, role: "assistant", text: "", timestamp: timestamp(), metadata: { status: "RUNNING", steps: initialRuntimeSteps() } },
+      ]);
+      setLoading(true);
+      const execution = await startExecution({ message: userMessage, conversation_id: conversationId });
+      setResponseId(execution.execution_id);
+      executionRef.current = execution.execution_id;
+      runtimeRef.current = subscribeRuntime(execution.execution_id, (event) => {
+        setMessages((current) => current.map((message) => {
+          if (message.id !== assistantId) return message;
+          const metadata = {
+            ...message.metadata,
+            execution_id: execution.execution_id,
+            workflow_id: execution.workflow_id,
+            status: event.final
+              ? event.status === "failed"
+                ? "FAILED"
+                : event.status === "cancelled"
+                  ? "CANCELLED"
+                  : "COMPLETED"
+              : "RUNNING",
+            agent: event.agent ?? message.metadata?.agent,
+            duration_ms: event.duration_ms ?? message.metadata?.duration_ms,
+          };
+          const step = { id: event.name, name: event.name, description: event.description, status: event.status, timestamp: event.timestamp };
+          const oldSteps = metadata.steps || [];
+          const steps = oldSteps.some((item) => item.id === step.id)
+            ? oldSteps.map((item) => item.id === step.id ? { ...item, ...step } : item)
+            : [...oldSteps, step];
+          return {
+            ...message,
+            text: event.final ? (event.message || (event.status === "failed" ? "Enterprise AI Runtime failed." : "Completed successfully")) : message.text,
+            metadata: { ...metadata, steps },
+          };
+        }));
+        if (event.final) {
+          setLoading(false);
+          runtimeRef.current?.();
+          runtimeRef.current = null;
+          executionRef.current = null;
+        }
+      }, (error) => failExecution(assistantId, error.message));
     } catch (error) {
-
-      console.error(error);
-
-      setMessages(prev =>
-        prev.map(message =>
-          message.id === assistantId
-            ? {
-                ...message,
-
-                text:
-                  "❌ Unable to contact the AI service.",
-
-                isStreaming: false,
-
-              }
-            : message
-        )
-      );
-
-    } finally {
-
-      controllerRef.current =
-        null;
-
+      console.error("Unable to start runtime execution", error);
+      if (assistantId) {
+        failExecution(
+          assistantId,
+          error instanceof Error ? error.message : "Unable to start runtime execution",
+        );
+      }
       setLoading(false);
-
     }
-
   }
 
-  // --------------------------------------------------
-  // Wrapper
-  // --------------------------------------------------
-
-  async function handleSend(
-    userMessage
-  ) {
-
-    await handleStream(
-      userMessage
-    );
-
+  function failExecution(assistantId, description) {
+    setMessages((current) => current.map((message) => message.id === assistantId ? {
+      ...message,
+      text: "Enterprise AI Runtime failed.",
+      metadata: { ...message.metadata, status: "FAILED", steps: [...(message.metadata?.steps || []), { id: "runtime-error", name: "Runtime Execution", description, status: "failed", timestamp: new Date().toISOString() }] },
+    } : message));
+    setLoading(false);
   }
-
-  // --------------------------------------------------
-  // Stop Generation
-  // --------------------------------------------------
 
   function stopGeneration() {
-
-    controllerRef.current?.abort();
-
+    const executionId = executionRef.current;
+    runtimeRef.current?.();
+    runtimeRef.current = null;
+    executionRef.current = null;
+    if (executionId) {
+      void cancelRuntime(executionId).catch((error) => console.error("Runtime cancellation failed", error));
+    }
+    setMessages((current) => current.map((message) => message.metadata?.status === "RUNNING" ? {
+      ...message,
+      metadata: { ...message.metadata, status: "CANCELLED" },
+    } : message));
+    setLoading(false);
   }
 
-  // --------------------------------------------------
-  // Return
-  // --------------------------------------------------
-
-  return {
-
-  messages,
-
-  loading,
-
-  loadMessages,
-
-  clearChat,
-
-  handleSend,
-
-  handleStream,
-
-  stopGeneration,
-
-};
-
-}
-// --------------------------------------------------
-// Clear Chat
-// --------------------------------------------------
-
-function clearChat() {
-
-  setMessages([]);
-
-  setResponseId(null);
-
-  setLoading(false);
-
+  function clearChat() { setMessages([]); setResponseId(null); setLoading(false); }
+  useEffect(() => () => runtimeRef.current?.(), []);
+  return { messages, loading, responseId, loadMessages, clearChat, handleStream, handleSend: handleStream, stopGeneration };
 }
