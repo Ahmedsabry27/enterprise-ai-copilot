@@ -25,8 +25,8 @@ jobs:
     env:
       DATABASE_URL: postgresql+psycopg://migration_test@127.0.0.1:5432/copilot_migrations
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -37,7 +37,7 @@ jobs:
         working-directory: backend
       - name: Upload PostgreSQL verification output
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: postgres-migration-verification
           path: postgres-migration-output.txt
