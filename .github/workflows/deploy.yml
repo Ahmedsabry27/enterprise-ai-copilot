@@ -20,6 +20,7 @@ permissions:
 jobs:
   deploy:
     name: Build and Deploy Backend
+    if: ${{ vars.AWS_DEPLOY_ENABLED == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
