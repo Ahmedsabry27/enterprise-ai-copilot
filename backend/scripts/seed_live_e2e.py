@@ -45,9 +45,9 @@ def main() -> None:
     output.write_text(
         json.dumps(
             {
-                "token": issue_e2e_token(claims, lifetime_seconds=900),
+                "token": issue_e2e_token(claims, lifetime_seconds=3600),
                 "cross_tenant_token": issue_e2e_token(
-                    cross_tenant_claims, lifetime_seconds=900
+                    cross_tenant_claims, lifetime_seconds=3600
                 ),
                 "tenant": tenant,
                 "actor": actor,

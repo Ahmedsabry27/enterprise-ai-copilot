@@ -15,6 +15,17 @@ class E2EAuthenticationError(ValueError):
     """Raised when the isolated E2E credential is unavailable or invalid."""
 
 
+def _max_lifetime_seconds() -> int:
+    """Return the isolated test-token lifetime, bounded to two hours."""
+    try:
+        configured = int(os.getenv("E2E_AUTH_MAX_LIFETIME_SECONDS", "900"))
+    except ValueError as error:
+        raise E2EAuthenticationError(
+            "E2E_AUTH_MAX_LIFETIME_SECONDS must be an integer"
+        ) from error
+    return min(max(configured, 1), 7200)
+
+
 def _enabled() -> bool:
     return os.getenv("E2E_AUTH_ENABLED", "").lower() == "true"
 
@@ -50,7 +61,7 @@ def verify_e2e_token(token: str) -> dict[str, Any]:
     now = int(time.time())
     if not now - 30 <= int(claims.get("iat", 0)) <= now + 30:
         raise E2EAuthenticationError("Invalid E2E credential issue time")
-    if not now < int(claims.get("exp", 0)) <= now + 900:
+    if not now < int(claims.get("exp", 0)) <= now + _max_lifetime_seconds():
         raise E2EAuthenticationError("Expired or overlong E2E credential")
     if not claims.get("sub") or not claims.get("custom:tenant_id"):
         raise E2EAuthenticationError("Incomplete E2E identity")
@@ -67,7 +78,7 @@ def issue_e2e_token(claims: dict[str, Any], lifetime_seconds: int = 300) -> str:
         **claims,
         "iss": "enterprise-ai-copilot-e2e",
         "iat": now,
-        "exp": now + min(max(lifetime_seconds, 1), 900),
+        "exp": now + min(max(lifetime_seconds, 1), _max_lifetime_seconds()),
     }
     encoded = (
         base64.urlsafe_b64encode(
