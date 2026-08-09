@@ -267,7 +267,7 @@ jobs:
             --output json)
           overrides=$(jq -cn \
             --arg container "$CONTAINER_NAME" \
-            '{containerOverrides:[{name:$container,command:["python","scripts/initialize_catalog.py"]}]}')
+            '{containerOverrides:[{name:$container,command:["python","-m","scripts.initialize_catalog"]}]}')
           task=$(aws ecs run-task \
             --cluster "$ECS_CLUSTER" \
             --task-definition "$MIGRATION_TASK_DEFINITION" \
