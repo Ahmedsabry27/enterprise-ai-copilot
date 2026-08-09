@@ -120,6 +120,7 @@ jobs:
           DATABASE_NAME: ${{ vars.DATABASE_NAME || secrets.DATABASE_NAME }}
           CORS_ALLOWED_ORIGINS: ${{ vars.CORS_ALLOWED_ORIGINS || secrets.CORS_ALLOWED_ORIGINS }}
           TRUSTED_HOSTS: ${{ vars.TRUSTED_HOSTS || secrets.TRUSTED_HOSTS }}
+          ECS_TASK_ROLE_ARN: ${{ vars.ECS_TASK_ROLE_ARN || secrets.ECS_TASK_ROLE_ARN }}
           CONTAINER_NAME: ${{ env.CONTAINER_NAME }}
         run: |
           test -n "$DATABASE_SECRET_ARN"
@@ -127,6 +128,7 @@ jobs:
           test -n "$DATABASE_NAME"
           test -n "$CORS_ALLOWED_ORIGINS"
           test -n "$TRUSTED_HOSTS"
+          test -n "$ECS_TASK_ROLE_ARN"
           jq \
             --arg container "$CONTAINER_NAME" \
             --arg region "$COGNITO_REGION" \
@@ -137,7 +139,10 @@ jobs:
             --arg database_name "$DATABASE_NAME" \
             --arg cors_allowed_origins "$CORS_ALLOWED_ORIGINS" \
             --arg trusted_hosts "$TRUSTED_HOSTS" \
+            --arg task_role "$ECS_TASK_ROLE_ARN" \
             '
+            .taskRoleArn = $task_role
+            |
             .containerDefinitions |= map(
               if .name == $container then
                 .environment =
@@ -154,6 +159,7 @@ jobs:
                         and .name != "CORS_ALLOWED_ORIGINS"
                         and .name != "TRUSTED_HOSTS"
                         and .name != "RUN_SCHEMA_CREATE"
+                        and .name != "DATABASE_URL"
                       ))
                     +
                     [
