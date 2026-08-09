@@ -115,11 +115,11 @@ jobs:
           COGNITO_REGION: ${{ secrets.COGNITO_REGION }}
           COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
           COGNITO_CLIENT_ID: ${{ secrets.COGNITO_CLIENT_ID }}
-          DATABASE_SECRET_ARN: ${{ vars.DATABASE_SECRET_ARN }}
-          DATABASE_HOST: ${{ vars.DATABASE_HOST }}
-          DATABASE_NAME: ${{ vars.DATABASE_NAME }}
-          CORS_ALLOWED_ORIGINS: ${{ vars.CORS_ALLOWED_ORIGINS }}
-          TRUSTED_HOSTS: ${{ vars.TRUSTED_HOSTS }}
+          DATABASE_SECRET_ARN: ${{ vars.DATABASE_SECRET_ARN || secrets.DATABASE_SECRET_ARN }}
+          DATABASE_HOST: ${{ vars.DATABASE_HOST || secrets.DATABASE_HOST }}
+          DATABASE_NAME: ${{ vars.DATABASE_NAME || secrets.DATABASE_NAME }}
+          CORS_ALLOWED_ORIGINS: ${{ vars.CORS_ALLOWED_ORIGINS || secrets.CORS_ALLOWED_ORIGINS }}
+          TRUSTED_HOSTS: ${{ vars.TRUSTED_HOSTS || secrets.TRUSTED_HOSTS }}
           CONTAINER_NAME: ${{ env.CONTAINER_NAME }}
         run: |
           test -n "$DATABASE_SECRET_ARN"
