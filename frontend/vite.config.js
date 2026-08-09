@@ -19,4 +19,9 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
   },
+  test: {
+    environment: "jsdom",
+    setupFiles: "./src/test/setup.js",
+    exclude: ["e2e/**", "e2e-live/**", "node_modules/**", "dist/**"],
+  },
 });

@@ -85,8 +85,7 @@ export function subscribeRuntime(
 
 
   const baseUrl =
-    import.meta.env.VITE_API_URL ||
-    "http://127.0.0.1:8000";
+    import.meta.env.VITE_API_URL || "";
 
 
 
@@ -200,6 +199,8 @@ export function subscribeRuntime(
 
         source.close();
 
+        onComplete?.(data);
+
 
       }
 
@@ -207,7 +208,7 @@ export function subscribeRuntime(
 
 
     }
-    catch(error){
+    catch {
 
 
       console.error(

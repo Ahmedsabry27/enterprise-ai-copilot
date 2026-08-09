@@ -1,7 +1,4 @@
-import {
-  useEffect,
-  useRef,
-} from "react";
+import { useEffect, useRef, useState } from "react";
 
 
 import EmptyState from "./EmptyState";
@@ -18,6 +15,8 @@ export default function ChatWindow({
 
 
   const bottomRef = useRef(null);
+  const scrollRef = useRef(null);
+  const [newActivity,setNewActivity]=useState(false);
 
 
 
@@ -28,13 +27,10 @@ export default function ChatWindow({
   useEffect(() => {
 
 
-    bottomRef.current?.scrollIntoView({
-
-      behavior: "smooth",
-
-      block: "end",
-
-    });
+    const node=scrollRef.current;
+    const nearBottom=!node||node.scrollHeight-node.scrollTop-node.clientHeight<120;
+    if(nearBottom)bottomRef.current?.scrollIntoView({behavior:"smooth",block:"end"});
+    else setNewActivity(true);
 
 
   }, [
@@ -68,12 +64,14 @@ export default function ChatWindow({
 
 
       <div
+        ref={scrollRef}
+        onScroll={e=>{const node=e.currentTarget;if(node.scrollHeight-node.scrollTop-node.clientHeight<120)setNewActivity(false)}}
         className="
           flex-1
           overflow-y-auto
           px-8
           pt-8
-          pb-48
+          pb-8
           scrollbar-thin
           scrollbar-thumb-white/10
           scrollbar-track-transparent
@@ -180,6 +178,8 @@ export default function ChatWindow({
         <div
           ref={bottomRef}
         />
+
+        {newActivity&&<button onClick={()=>{bottomRef.current?.scrollIntoView({behavior:"smooth"});setNewActivity(false)}} className="sticky bottom-3 mx-auto mt-3 block rounded-full border border-violet-400/30 bg-slate-900 px-4 py-2 text-xs text-violet-200 shadow-xl" aria-label="Scroll to new activity">↓ New activity</button>}
 
 
 

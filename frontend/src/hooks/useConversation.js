@@ -9,6 +9,8 @@ import {
   getConversations,
   getConversationMessages,
   createConversation,
+  deleteConversation,
+  updateConversation,
 } from "../services/conversationService";
 
 
@@ -144,6 +146,7 @@ export default function useConversation(){
     loading,
     setLoading
   ] = useState(false);
+  const [error,setError]=useState(null);
 
 
 
@@ -165,6 +168,7 @@ export default function useConversation(){
 
 
       try{
+        setError(null);
 
 
         const response =
@@ -197,6 +201,7 @@ export default function useConversation(){
 
 
         setConversations([]);
+        setError("Conversations could not be loaded.");
 
 
       }
@@ -227,11 +232,8 @@ export default function useConversation(){
 
 
   useEffect(()=>{
-
-
-    refreshConversations();
-
-
+    const task = window.setTimeout(() => void refreshConversations(), 0);
+    return () => window.clearTimeout(task);
   },[
     refreshConversations
   ]);
@@ -428,6 +430,10 @@ export default function useConversation(){
 
   }
 
+  async function renameConversation(id,title){await updateConversation(id,{title});await refreshConversations();}
+  async function togglePinned(id,isPinned){await updateConversation(id,{is_pinned:!isPinned});await refreshConversations();}
+  async function removeConversation(id){await deleteConversation(id);if(conversationId===id)newChat();await refreshConversations();}
+
 
 
 
@@ -460,6 +466,7 @@ export default function useConversation(){
     conversations,
 
     loading,
+    error,
 
 
     refreshConversations,
@@ -484,6 +491,9 @@ export default function useConversation(){
 
 
     newChat,
+    renameConversation,
+    togglePinned,
+    removeConversation,
 
     resetConversation,
 

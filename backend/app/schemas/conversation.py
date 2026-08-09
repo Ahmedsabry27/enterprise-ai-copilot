@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict
 # Create Conversation
 # --------------------------------------------------
 
+
 class ConversationCreate(BaseModel):
     title: str
 
@@ -16,13 +17,16 @@ class ConversationCreate(BaseModel):
 # Update Conversation
 # --------------------------------------------------
 
+
 class ConversationUpdate(BaseModel):
-    title: str
+    title: str | None = None
+    is_pinned: bool | None = None
 
 
 # --------------------------------------------------
 # Response
 # --------------------------------------------------
+
 
 class ConversationResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -31,3 +35,7 @@ class ConversationResponse(BaseModel):
     title: str
     created_at: datetime
     updated_at: datetime
+    tenant_id: str
+    agent_uuid: str | None = None
+    agent_version: int | None = None
+    is_pinned: bool = False

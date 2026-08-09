@@ -12,7 +12,7 @@ class BedrockAdapter:
     @staticmethod
     def to_messages(
         messages: Sequence[AIMessage],
-    ) -> tuple[list[dict] | None, list[dict]]:
+    ) -> tuple[str | None, list[dict]]:
 
         system = None
         bedrock_messages = []
@@ -20,11 +20,7 @@ class BedrockAdapter:
         for message in messages:
 
             if message.role == AIMessageRole.SYSTEM:
-                system = [
-                    {
-                        "text": message.content,
-                    }
-                ]
+                system = message.content
                 continue
 
             bedrock_messages.append(

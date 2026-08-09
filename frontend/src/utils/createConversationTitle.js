@@ -5,6 +5,10 @@ export default function createConversationTitle(
     .trim()
     .replace(/\s+/g, " ");
 
+  if (/^(yes|no|ok|okay|sure|continue|approve|deny)$/i.test(title)) {
+    return "Enterprise AI Request";
+  }
+
   if (title.length <= 50) {
     return title;
   }

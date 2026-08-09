@@ -11,7 +11,6 @@ from app.repositories.message_repository import (
 
 
 class ConversationService:
-
     # --------------------------------------------------
     # Conversation CRUD
     # --------------------------------------------------
@@ -21,11 +20,13 @@ class ConversationService:
         db: Session,
         user_id: str,
         title: str = "New Conversation",
+        tenant_id: str = "default",
     ):
         return conversation_repository.create(
             db=db,
             user_id=user_id,
             title=title,
+            tenant_id=tenant_id,
         )
 
     def get_conversations(
@@ -75,6 +76,12 @@ class ConversationService:
             conversation=conversation,
             title=title,
         )
+
+    def update_conversation(self, db: Session, conversation_id: UUID, user_id: str, *, title: str | None = None, is_pinned: bool | None = None):
+        conversation = self.get_conversation(db=db, conversation_id=conversation_id, user_id=user_id)
+        if conversation is None:
+            return None
+        return conversation_repository.update(db, conversation, title=title, is_pinned=is_pinned)
 
     # --------------------------------------------------
     # Delete Conversation

@@ -1,6 +1,10 @@
+
+from __future__ import annotations
+
 import logging
 import time
 from collections.abc import Generator, Sequence
+from typing import Any
 
 from botocore.exceptions import BotoCoreError, ClientError
 
@@ -19,11 +23,13 @@ from app.ai.models import (
     AIUsage,
 )
 from app.core.bedrock_client import client
+from app.core.config import settings
 from app.metrics.metrics import (
+    ai_errors_total,
+    ai_latency_seconds,
+    ai_requests_total,
+    ai_tokens_total,
     completion_tokens_total,
-    openai_errors_total,
-    openai_latency_seconds,
-    openai_requests_total,
     prompt_tokens_total,
     total_tokens_total,
 )
@@ -32,195 +38,414 @@ logger = logging.getLogger(__name__)
 
 
 class BedrockProvider(AIProvider):
+    """
+    Amazon Bedrock implementation of the AIProvider interface.
 
-    MODEL = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+    The model can be provided when the provider is instantiated. If no model
+    is provided, BEDROCK_MODEL_ID from the application settings is used.
+    """
+
+    def __init__(
+        self,
+        model: str | None = None,
+    ) -> None:
+        configured_model = model or settings.BEDROCK_MODEL_ID
+
+        if not configured_model or not configured_model.strip():
+            raise ValueError("Bedrock model must not be empty")
+
+        self.model = configured_model.strip()
+
+    @property
+    def invocation_model(self) -> str:
+        """Resolve the Bedrock resource used to invoke the published model."""
+        if settings.BEDROCK_INFERENCE_PROFILE_ID:
+            return settings.BEDROCK_INFERENCE_PROFILE_ID.strip()
+        if self.model == "amazon.nova-lite-v1:0":
+            if settings.AWS_REGION.startswith("us-"):
+                return "us.amazon.nova-lite-v1:0"
+            if settings.AWS_REGION.startswith("eu-"):
+                return "eu.amazon.nova-lite-v1:0"
+        return self.model
 
     def ask(
         self,
         messages: Sequence[AIMessage],
     ) -> AIResponse:
+        start = time.perf_counter()
 
         try:
+            system_prompt, conversation = BedrockAdapter.to_messages(
+                messages
+            )
 
-            start = time.perf_counter()
-
-            system_prompt, conversation = BedrockAdapter.to_messages(messages)
-
-            request = {
-                "modelId": self.MODEL,
-                "messages": conversation,
-            }
-
-            if system_prompt:
-                request["system"] = [
-                    {
-                        "text": system_prompt,
-                    }
-                ]
+            request = self._build_request(
+                system_prompt=system_prompt,
+                conversation=conversation,
+            )
 
             response = client.converse(**request)
 
             latency = time.perf_counter() - start
 
-            openai_requests_total.inc()
-            openai_latency_seconds.observe(latency)
+            ai_requests_total.labels("bedrock", self.model, "success").inc()
+            ai_latency_seconds.labels("bedrock", self.model).observe(latency)
 
             usage = self._build_usage(response)
+            text = self._extract_text(response)
 
-            text = ""
-
-            output = response.get("output", {})
-
-            if output.get("message"):
-
-                for item in output["message"]["content"]:
-
-                    if "text" in item:
-                        text += item["text"]
+            response_metadata = response.get(
+                "ResponseMetadata",
+                {},
+            )
 
             return AIResponse(
                 text=text,
-                model=self.MODEL,
+                response_id=response_metadata.get("RequestId"),
+                model=self.model,
                 latency_seconds=latency,
                 usage=usage,
             )
 
         except ClientError as ex:
+            ai_errors_total.labels("bedrock", self.model, self._get_error_code(ex)).inc()
 
-            openai_errors_total.inc()
+            logger.exception(
+                "Amazon Bedrock request failed",
+                extra={
+                    "provider": "bedrock",
+                    "model": self.model,
+                    "error_code": self._get_error_code(ex),
+                    "aws_request_id": ex.response.get("ResponseMetadata", {}).get("RequestId"),
+                    "exception_class": type(ex).__name__,
+                },
+            )
 
-            error_code = ex.response["Error"]["Code"]
-
-            if error_code == "ThrottlingException":
-                raise AIRateLimitError(str(ex)) from ex
-
-            if error_code == "AccessDeniedException":
-                raise AIAuthenticationError(str(ex)) from ex
-
-            raise AIProviderError(str(ex)) from ex
+            self._raise_client_error(ex)
 
         except BotoCoreError as ex:
+            ai_errors_total.labels("bedrock", self.model, type(ex).__name__).inc()
 
-            openai_errors_total.inc()
+            logger.exception(
+                "Amazon Bedrock SDK failure",
+                extra={
+                    "provider": "bedrock",
+                    "model": self.model,
+                },
+            )
+
             raise AIUnknownError(str(ex)) from ex
 
-        except Exception as ex:
+        except AIProviderError:
+            raise
 
-            openai_errors_total.inc()
+        except Exception as ex:
+            ai_errors_total.labels("bedrock", self.model, type(ex).__name__).inc()
+
+            logger.exception(
+                "Unexpected Amazon Bedrock request failure",
+                extra={
+                    "provider": "bedrock",
+                    "model": self.model,
+                },
+            )
+
             raise AIUnknownError(str(ex)) from ex
 
     def stream(
         self,
         messages: Sequence[AIMessage],
     ) -> Generator[AIStreamEvent, None, None]:
+        start = time.perf_counter()
+        usage: AIUsage | None = None
+        response_id: str | None = None
 
         try:
+            ai_requests_total.labels("bedrock", self.model, "started").inc()
 
-            openai_requests_total.inc()
+            system_prompt, conversation = BedrockAdapter.to_messages(
+                messages
+            )
 
-            start = time.perf_counter()
+            request = self._build_request(
+                system_prompt=system_prompt,
+                conversation=conversation,
+            )
 
-            system_prompt, conversation = BedrockAdapter.to_messages(messages)
+            response = client.converse_stream(**request)
 
-            request = {
-                "modelId": self.MODEL,
-                "messages": conversation,
-            }
-
-            if system_prompt:
-                request["system"] = [
-                    {
-                        "text": system_prompt,
-                    }
-                ]
-
-            stream = client.converse_stream(**request)
+            response_metadata = response.get(
+                "ResponseMetadata",
+                {},
+            )
+            response_id = response_metadata.get("RequestId")
 
             yield AIStreamEvent(
                 event_type="start",
-                model=self.MODEL,
+                response_id=response_id,
+                model=self.model,
             )
 
-            usage = None
-
-            for event in stream["stream"]:
-
+            for event in response["stream"]:
                 if "contentBlockDelta" in event:
+                    delta = event["contentBlockDelta"].get(
+                        "delta",
+                        {},
+                    )
 
-                    delta = event["contentBlockDelta"]["delta"]
+                    text = delta.get("text")
 
-                    if "text" in delta:
-
+                    if text:
                         yield AIStreamEvent(
                             event_type="delta",
-                            text=delta["text"],
-                            model=self.MODEL,
+                            text=text,
+                            response_id=response_id,
+                            model=self.model,
                         )
 
                 elif "metadata" in event:
+                    usage = self._build_usage(
+                        event["metadata"]
+                    )
 
-                    usage = self._build_usage(event["metadata"])
+                elif "internalServerException" in event:
+                    message = event[
+                        "internalServerException"
+                    ].get(
+                        "message",
+                        "Amazon Bedrock streaming request failed",
+                    )
+
+                    raise AIProviderError(message)
+
+                elif "modelStreamErrorException" in event:
+                    message = event[
+                        "modelStreamErrorException"
+                    ].get(
+                        "message",
+                        "Amazon Bedrock model stream failed",
+                    )
+
+                    raise AIProviderError(message)
+
+                elif "throttlingException" in event:
+                    message = event[
+                        "throttlingException"
+                    ].get(
+                        "message",
+                        "Amazon Bedrock request was throttled",
+                    )
+
+                    raise AIRateLimitError(message)
+
+                elif "validationException" in event:
+                    message = event[
+                        "validationException"
+                    ].get(
+                        "message",
+                        "Amazon Bedrock request validation failed",
+                    )
+
+                    raise AIProviderError(message)
+
+                elif "serviceUnavailableException" in event:
+                    message = event[
+                        "serviceUnavailableException"
+                    ].get(
+                        "message",
+                        "Amazon Bedrock service is unavailable",
+                    )
+
+                    raise AIProviderError(message)
 
             latency = time.perf_counter() - start
 
-            openai_latency_seconds.observe(latency)
+            ai_latency_seconds.labels("bedrock", self.model).observe(latency)
 
             yield AIStreamEvent(
                 event_type="completed",
-                model=self.MODEL,
+                response_id=response_id,
+                model=self.model,
                 usage=usage,
             )
 
         except ClientError as ex:
+            ai_errors_total.labels("bedrock", self.model, self._get_error_code(ex)).inc()
 
-            openai_errors_total.inc()
+            logger.exception(
+                "Amazon Bedrock streaming request failed",
+                extra={
+                    "provider": "bedrock",
+                    "model": self.model,
+                    "error_code": self._get_error_code(ex),
+                    "aws_request_id": ex.response.get("ResponseMetadata", {}).get("RequestId"),
+                    "exception_class": type(ex).__name__,
+                },
+            )
 
-            error_code = ex.response["Error"]["Code"]
-
-            if error_code == "ThrottlingException":
-                raise AIRateLimitError(str(ex)) from ex
-
-            if error_code == "AccessDeniedException":
-                raise AIAuthenticationError(str(ex)) from ex
-
-            raise AIProviderError(str(ex)) from ex
+            self._raise_client_error(ex)
 
         except BotoCoreError as ex:
+            ai_errors_total.labels("bedrock", self.model, type(ex).__name__).inc()
 
-            openai_errors_total.inc()
+            logger.exception(
+                "Amazon Bedrock streaming SDK failure",
+                extra={
+                    "provider": "bedrock",
+                    "model": self.model,
+                },
+            )
+
             raise AIUnknownError(str(ex)) from ex
+
+        except AIProviderError:
+            ai_errors_total.labels("bedrock", self.model, type(ex).__name__).inc()
+            raise
 
         except Exception as ex:
+            ai_errors_total.labels("bedrock", self.model, type(ex).__name__).inc()
 
-            openai_errors_total.inc()
+            logger.exception(
+                "Unexpected Amazon Bedrock streaming failure",
+                extra={
+                    "provider": "bedrock",
+                    "model": self.model,
+                },
+            )
+
             raise AIUnknownError(str(ex)) from ex
+
+    def _build_request(
+        self,
+        *,
+        system_prompt: str | None,
+        conversation: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        request: dict[str, Any] = {
+            "modelId": self.invocation_model,
+            "messages": conversation,
+            "inferenceConfig": {
+                "maxTokens": settings.BEDROCK_MAX_TOKENS,
+                "temperature": settings.BEDROCK_TEMPERATURE,
+                "topP": settings.BEDROCK_TOP_P,
+            },
+        }
+
+        if system_prompt:
+            request["system"] = [
+                {
+                    "text": system_prompt,
+                }
+            ]
+
+        return request
+
+    def _extract_text(
+        self,
+        response: dict[str, Any],
+    ) -> str:
+        output = response.get("output", {})
+        message = output.get("message", {})
+        content = message.get("content", [])
+
+        return "".join(
+            str(item.get("text", ""))
+            for item in content
+            if isinstance(item, dict) and "text" in item
+        )
 
     def _build_usage(
         self,
-        response: dict,
+        response: dict[str, Any],
     ) -> AIUsage | None:
-
         usage = response.get("usage")
 
-        if usage is None:
+        if not usage:
             return None
 
-        prompt_tokens_total.inc(usage["inputTokens"])
-        completion_tokens_total.inc(usage["outputTokens"])
-        total_tokens_total.inc(usage["totalTokens"])
+        input_tokens = int(
+            usage.get("inputTokens", 0) or 0
+        )
+        output_tokens = int(
+            usage.get("outputTokens", 0) or 0
+        )
+        total_tokens = int(
+            usage.get(
+                "totalTokens",
+                input_tokens + output_tokens,
+            )
+            or input_tokens + output_tokens
+        )
+
+        prompt_tokens_total.inc(input_tokens)
+        completion_tokens_total.inc(output_tokens)
+        total_tokens_total.inc(total_tokens)
+        ai_tokens_total.labels("bedrock", self.model, "prompt").inc(input_tokens)
+        ai_tokens_total.labels("bedrock", self.model, "completion").inc(output_tokens)
+        ai_tokens_total.labels("bedrock", self.model, "total").inc(total_tokens)
 
         logger.info(
             "bedrock_usage",
             extra={
-                "model": self.MODEL,
-                "prompt_tokens": usage["inputTokens"],
-                "completion_tokens": usage["outputTokens"],
-                "total_tokens": usage["totalTokens"],
+                "provider": "bedrock",
+                "model": self.model,
+                "prompt_tokens": input_tokens,
+                "completion_tokens": output_tokens,
+                "total_tokens": total_tokens,
             },
         )
 
         return AIUsage(
-            prompt_tokens=usage["inputTokens"],
-            completion_tokens=usage["outputTokens"],
-            total_tokens=usage["totalTokens"],
+            prompt_tokens=input_tokens,
+            completion_tokens=output_tokens,
+            total_tokens=total_tokens,
         )
+
+    @staticmethod
+    def _get_error_code(
+        exception: ClientError,
+    ) -> str:
+        return str(
+            exception.response.get(
+                "Error",
+                {},
+            ).get(
+                "Code",
+                "Unknown",
+            )
+        )
+
+    def _raise_client_error(
+        self,
+        exception: ClientError,
+    ) -> None:
+        error = exception.response.get("Error", {})
+        error_code = str(error.get("Code", "Unknown"))
+        error_message = str(
+            error.get("Message", str(exception))
+        )
+
+        if error_code in {
+            "ThrottlingException",
+            "TooManyRequestsException",
+            "ServiceQuotaExceededException",
+        }:
+            raise AIRateLimitError(
+                error_message
+            ) from exception
+
+        if error_code in {
+            "AccessDeniedException",
+            "UnauthorizedException",
+            "UnrecognizedClientException",
+            "InvalidSignatureException",
+            "ExpiredTokenException",
+        }:
+            raise AIAuthenticationError(
+                error_message
+            ) from exception
+
+        raise AIProviderError(
+            f"Amazon Bedrock error [{error_code}]: "
+            f"{error_message}"
+        ) from exception

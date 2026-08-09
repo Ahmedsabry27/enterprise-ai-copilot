@@ -41,7 +41,8 @@ export default function useAuth() {
     }, []);
 
     useEffect(() => {
-        refresh();
+        const task = window.setTimeout(() => void refresh(), 0);
+        return () => window.clearTimeout(task);
     }, [refresh]);
 
     return {

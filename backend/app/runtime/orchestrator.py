@@ -118,6 +118,22 @@ class RuntimeOrchestrator:
                     payload={
                         "workflow_id": str(context.workflow_id),
                         "tasks_total": len(plan.tasks),
+                        "plan": {
+                            "goal": plan.goal,
+                            "estimated_duration_seconds": plan.estimated_duration_seconds,
+                            "estimated_cost": plan.estimated_cost,
+                            "steps": [
+                                {
+                                    "id": str(task.id), "name": task.name,
+                                    "description": task.description, "type": "tool" if task.tool else "agent",
+                                    "tool": task.tool, "agent": task.agent,
+                                    "dependencies": [str(item) for item in task.depends_on],
+                                    "required_inputs": list((task.metadata or {}).get("required_inputs", [])),
+                                    "status": "pending",
+                                }
+                                for task in plan.tasks
+                            ],
+                        },
                     },
                 )
             )

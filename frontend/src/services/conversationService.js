@@ -119,6 +119,11 @@ export async function updateConversationTitle(
 
 }
 
+export async function updateConversation(conversationId, changes){
+  const response=await api.patch(`/conversations/${conversationId}`,changes);
+  return response.data;
+}
+
 
 
 

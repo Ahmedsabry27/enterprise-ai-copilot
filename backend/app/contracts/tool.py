@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 
-from app.contracts.results import ToolResult
-from app.contracts.tool_models import ToolRequest
+from app.contracts.tool_models import ExecutionContext, ToolMetadata, ToolResult
 
 
 class Tool(ABC):
@@ -9,14 +8,18 @@ class Tool(ABC):
     Base contract for enterprise tools.
     """
 
+    metadata: ToolMetadata
+
     @property
-    @abstractmethod
     def name(self) -> str:
-        ...
+        return self.metadata.name
 
     @abstractmethod
     async def execute(
         self,
-        request: ToolRequest,
-    ) -> ToolResult:
-        ...
+        input_data: dict,
+        context: ExecutionContext,
+    ) -> ToolResult: ...
+
+    async def health(self) -> dict:
+        return {"ready": True, "message": "Ready"}

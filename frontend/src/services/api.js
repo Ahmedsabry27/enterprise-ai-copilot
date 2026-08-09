@@ -1,8 +1,13 @@
 import axios from "axios";
 import { getAccessToken } from "./auth";
 
+const apiBaseUrl = import.meta.env.VITE_API_URL || "";
+if (import.meta.env.PROD && apiBaseUrl && !apiBaseUrl.startsWith("https://")) {
+  throw new Error("VITE_API_URL must use HTTPS in production");
+}
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+  baseURL: apiBaseUrl,
   headers: {
     "Content-Type": "application/json",
   },
@@ -16,25 +21,21 @@ api.interceptors.request.use(
     try {
       const token = await getAccessToken();
 
-      console.group("🚀 API Request");
-      console.log("URL:", `${config.baseURL}${config.url}`);
-      console.log("Method:", config.method?.toUpperCase());
+      config.headers = config.headers || {};
+
+      if (import.meta.env.DEV) {
+        console.log("[api.js] request", config.url, "token present?", !!token);
+      }
 
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
-
-        console.log("✅ Access Token Found");
-        console.log("Token Preview:", `${token.substring(0, 30)}...`);
-      } else {
-        console.warn("⚠️ No access token found.");
+      } else if (import.meta.env.DEV) {
+        console.warn("No access token available for API request", config.url);
       }
-
-      console.log("Headers:", config.headers);
-      console.groupEnd();
 
       return config;
     } catch (error) {
-      console.error("❌ Failed to retrieve access token:", error);
+      if (import.meta.env.DEV) console.error("Failed to retrieve access token", error);
       return Promise.reject(error);
     }
   },
@@ -45,28 +46,14 @@ api.interceptors.request.use(
 // Response Interceptor
 // --------------------------------------------------
 api.interceptors.response.use(
-  (response) => {
-    console.group("✅ API Response");
-    console.log("Status:", response.status);
-    console.log("URL:", response.config.url);
-    console.log("Data:", response.data);
-    console.groupEnd();
-
-    return response;
-  },
+  (response) => response,
   (error) => {
-    console.group("❌ API Error");
-
-    if (error.response) {
-      console.log("Status:", error.response.status);
-      console.log("Data:", error.response.data);
-      console.log("Headers:", error.response.headers);
-    } else {
-      console.log("Message:", error.message);
+    if (import.meta.env.DEV) {
+      console.error("API request failed", {
+        status: error.response?.status,
+        url: error.config?.url,
+      });
     }
-
-    console.groupEnd();
-
     return Promise.reject(error);
   }
 );

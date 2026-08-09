@@ -17,7 +17,11 @@ def upgrade() -> None:
     op.add_column("workflows", sa.Column("description", sa.String(), nullable=True))
     op.add_column("workflows", sa.Column("assigned_agent", sa.String(), nullable=True))
     op.add_column("workflows", sa.Column("trigger_type", sa.String(), nullable=False, server_default="MANUAL"))
-    op.alter_column("workflows", "trigger_type", server_default=None)
+    if op.get_bind().dialect.name == "sqlite":
+        with op.batch_alter_table("workflows") as batch_op:
+            batch_op.alter_column("trigger_type", server_default=None)
+    else:
+        op.alter_column("workflows", "trigger_type", server_default=None)
 
 
 def downgrade() -> None:

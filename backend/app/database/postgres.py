@@ -1,66 +1,9 @@
-from __future__ import annotations
+"""Compatibility exports for the centralized database session.
 
-from sqlalchemy import create_engine
+Database credentials must be supplied through ``DATABASE_URL`` by the deployment
+secret injector.  This module intentionally contains no connection defaults.
+"""
 
-from sqlalchemy.orm import (
-    sessionmaker,
-    Session,
-)
+from app.database.session import SessionLocal, engine, get_db
 
-from typing import Generator
-
-
-# ---------------------------------
-# Database Configuration
-# ---------------------------------
-
-DATABASE_URL = (
-    "postgresql://postgres:Copilot2026%23Postgres@enterprise-ai-copilot-db.cyl6ycsqsk33.us-east-1.rds.amazonaws.com:5432/enterprise_ai_copilot"
-)
-
-
-# ---------------------------------
-# Engine
-# ---------------------------------
-
-engine = create_engine(
-    DATABASE_URL,
-    echo=False,
-)
-
-
-
-# ---------------------------------
-# Session Factory
-# ---------------------------------
-
-SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=engine,
-)
-
-
-
-# ---------------------------------
-# FastAPI Dependency
-# ---------------------------------
-
-def get_db() -> Generator[
-    Session,
-    None,
-    None,
-]:
-    """
-    Provide database session.
-    """
-
-    db = SessionLocal()
-
-    try:
-
-        yield db
-
-    finally:
-
-        db.close()
+__all__ = ["SessionLocal", "engine", "get_db"]

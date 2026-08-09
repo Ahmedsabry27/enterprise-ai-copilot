@@ -1,0 +1,81 @@
+ID,Sprint,Requirement,Classification,Evidence
+S11-01,11,Stable Tool contract and metadata,PASS — Implemented and verified,backend/app/contracts/tool.py; tool_models.py; test_tool_sdk.py
+S11-02,11,Semantic versions and deterministic registry,PASS — Implemented and verified,backend/app/tool_sdk/registry.py:10-59; focused tests
+S11-03,11,Thread/concurrency-safe registry,PARTIAL — Implemented but incomplete,registry.py:19 declares asyncio.Lock but register/set methods never use it
+S11-04,11,Schema validation defaults and bounds,PASS — Implemented and verified,schema.py; executor.py:53 and 90-93; focused tests
+S11-05,11,Permission enforcement before execution,PASS — Implemented and verified,executor.py:41-52; permission tests
+S11-06,11,Timeout retry cancellation and normalized errors,PASS — Implemented and verified,executor.py:123-243; focused tests
+S11-07,11,Idempotency,PASS — Implemented and verified,executor.py:94-105; DB unique constraint; tests
+S11-08,11,Secret redaction and bounded outputs,PASS — Implemented and verified,executor.py:116 and 149-153; tests
+S11-09,11,Execution persistence and correlation,PASS — Implemented and verified,models/tool.py; executor.py:106-120
+S11-10,11,Immutable audit log for tool administration/execution,PARTIAL — Implemented but incomplete,ToolExecution exists but no AuditLog write or tamper control
+S11-11,11,Persistent tenant-aware catalog,PARTIAL — Implemented but incomplete,service.py:14-50 hard-codes tenant default
+S11-12,11,Tool catalog/details/filter API,PASS — Implemented and verified,api/tools.py:62-178; API tests
+S11-13,11,Permission-safe metadata discovery,PARTIAL — Implemented but incomplete,api/tools.py:119-134 exposes categories/providers/versions to any authenticated user
+S11-14,11,Administrative enable/disable and integrations,PASS — Implemented and verified,api/tools.py:320-424; API tests
+S11-15,11,Provider adapters,PASS — Implemented and verified,adapters.py and builtin_tools.py; fake contract tests
+S11-16,11,Live enterprise provider verification,BLOCKED — External dependency or credential prevents verification,No ServiceNow/Graph/Azure credentials available
+S11-17,11,Agent-only SDK bridge,PASS — Implemented and verified,tool_sdk/agent.py; runtime planner integration
+S11-18,11,Tool administration frontend,PARTIAL — Implemented but incomplete,tools pages use APIs but sparse tests and states
+S11-19,11,Authenticated browser workflow,NOT TESTED — Implementation exists but cannot be verified,No browser connector/session available
+S12-01,12,Native tools reuse Tool Executor,PASS — Implemented and verified,tool_sdk/native_tools.py registered in service.py; tests
+S12-02,12,File upload type/size/path checks,PASS — Implemented and verified,native_tools.py:134-185; tests
+S12-03,12,Production malware scanning,SECURITY GAP — Functionality exists but is unsafe,native_tools.py:168 checks one literal EICAR signature only
+S12-04,12,PDF/DOCX/XLSX/PPTX/text extraction,PASS — Implemented and verified,native_tools.py:106-130
+S12-05,12,Encrypted durable file storage and lifecycle,PARTIAL — Implemented but incomplete,native_tools.py:85-93 and 180-185 use local disk; no deletion/retention
+S12-06,12,Asynchronous processing and indexing,PARTIAL — Implemented but incomplete,native_tools.py:153-223 performs blocking processing in request
+S12-07,12,File search and summary,PARTIAL — Implemented but incomplete,native_tools.py:267-319 is substring scan and deterministic first sentences
+S12-08,12,Tenant-isolated file access,PASS — Implemented and verified,native_tools.py:270-305; api/native_tools.py:121-166
+S12-09,12,Read-only SQL parsing and table allowlist,PASS — Implemented and verified,native_tools.py:323-357; security tests
+S12-10,12,Database timeout and resource limits,PARTIAL — Implemented but incomplete,row limit exists; no statement timeout; sync engine in async call
+S12-11,12,Database secret-reference integration,PARTIAL — Implemented but incomplete,native_tools.py:400 reads dynamic env var independent of stored reference
+S12-12,12,REST allowlists and SSRF defense,PASS — Implemented and verified,native_tools.py:422-543; tests
+S12-13,12,REST write approval,PASS — Implemented and verified,native_tools.py:493-503 enforces elevated permission
+S12-14,12,REST secret-reference integration,PARTIAL — Implemented but incomplete,native_tools.py:512 reads dynamic env var independent of stored reference
+S12-15,12,Email delivery,MOCK-ONLY — Works only with fake or static data,native_tools.py:611-615 marks sent and invents provider ID
+S12-16,12,Teams delivery,MOCK-ONLY — Works only with fake or static data,same local-only NotificationTool implementation
+S12-17,12,Notification approval persistence,MOCK-ONLY — Works only with fake or static data,api/native_tools.py:341-367 mutates row and invents approved ID
+S12-18,12,Connection administration API,PASS — Implemented and verified,api/native_tools.py:202-284
+S12-19,12,Native administration frontend,PARTIAL — Implemented but incomplete,NativeToolsPage hard-codes status/version/risk and search is inert
+S12-20,12,Native execution history UI,BACKEND-ONLY — Backend exists without usable UI,generic execution page exists but no complete native-specific approval/history UX
+S13-01,13,Official compatible Python MCP SDK,PASS — Implemented and verified,backend/requirements.txt pins mcp==1.28.1 and imports execute
+S13-02,13,MCP server models and migration,PASS — Implemented and verified,models/mcp.py; f9 migration
+S13-03,13,Secret references without returned values,PASS — Implemented and verified,security.py; API serializers
+S13-04,13,Streamable HTTP transport,PASS — Implemented and verified,client.py:61-85
+S13-05,13,Legacy SSE transport,PASS — Implemented and verified,client.py:52-60
+S13-06,13,TLS host allowlist DNS and redirect security,PASS — Implemented and verified,security.py; client.py:45-71; tests
+S13-07,13,API key JWT service-account auth,PASS — Implemented and verified,client.py:25-41; no live credential
+S13-08,13,OAuth PKCE start/callback,PARTIAL — Implemented but incomplete,oauth.py:15-98; process-local state
+S13-09,13,OAuth token storage refresh and revocation,PARTIAL — Implemented but incomplete,oauth.py:99-105 discards tokens and lacks handoff/refresh/revoke
+S13-10,13,Connection reuse and lifecycle,PARTIAL — Implemented but incomplete,client.py:140-160 reconnects every session
+S13-11,13,Concurrency and response bounds,PASS — Implemented and verified,client.py:125-160; bounds are per process
+S13-12,13,Tool/resource/template/prompt discovery,PARTIAL — Implemented but incomplete,service.py and injected FakeClient cover types; real pagination not exercised
+S13-13,13,Schema fingerprint/change review,PASS — Implemented and verified,test_schema_change_requires_review_and_disables_tool
+S13-14,13,Tool adaptation into common executor,PARTIAL — Implemented but incomplete,executor path passes injected-fake test; no wire transport test
+S13-15,13,Standards-compliant fake server transport test,MOCK-ONLY — Works only with fake or static data,fake_mcp_server.py exists but tests inject FakeClient and never start it
+S13-16,13,Live MCP interoperability,BLOCKED — External dependency or credential prevents verification,No approved reachable MCP endpoint/credentials
+S13-17,13,Live OAuth flow,BLOCKED — External dependency or credential prevents verification,No authorization server/credentials
+S13-18,13,MCP administration frontend,PARTIAL — Implemented but incomplete,real APIs but incomplete edit/delete/OAuth/count/resource/prompt UX
+S13-19,13,Authenticated MCP browser E2E,NOT TESTED — Implementation exists but cannot be verified,No browser connector/session available
+S14-01,14,Unified discovery over SDK/native/MCP,PASS — Implemented and verified,index source/profile and registry paths; tests
+S14-02,14,Structured intent extraction,PARTIAL — Implemented but incomplete,intent.py is deterministic regex/token logic with limited fields
+S14-03,14,Semantic embedding provider,PARTIAL — Implemented but incomplete,embedding.py:20-48 is feature hashing not semantic meaning
+S14-04,14,Production vector storage/search,MISSING — No meaningful implementation found,JSON column and Python full scan; no pgvector adapter
+S14-05,14,Safe indexed documents,SECURITY GAP — Functionality exists but is unsafe,indexing.py:12-33 excludes secret names but does not neutralize untrusted instructions
+S14-06,14,Complete resumable indexing,REGRESSION — Implementation breaks existing behavior,indexing.py:47-53 always limits first 500 with no cursor
+S14-07,14,Tenant permission and hard-policy filtering,PASS — Implemented and verified,engine.py:87-130; governance.py; tests
+S14-08,14,Assignment semantics,PARTIAL — Implemented but incomplete,governance.py:100-106 ignores action and version
+S14-09,14,Full governance condition model,PARTIAL — Implemented but incomplete,governance.py:11-38 supports limited fields/operators
+S14-10,14,Explicit deny precedence,PASS — Implemented and verified,governance.py:105-127; tests
+S14-11,14,Hybrid deterministic ranking,PASS — Implemented and verified,engine.py:150-225; tests
+S14-12,14,No unauthorized inventory leakage,PASS — Implemented and verified,rejected decisions omit tool identity; tenant test
+S14-13,14,Durable clarification workflow,MISSING — No meaningful implementation found,engine only returns clarification_required flag
+S14-14,14,Durable approval request/resume,PARTIAL — Implemented but incomplete,executor accepts approval_granted boolean; no durable request/approver/expiry
+S14-15,14,Bounded multi-tool orchestration,PARTIAL — Implemented but incomplete,engine.py:237-240 returns multiple_candidates only
+S14-16,14,Audit telemetry and feedback,PARTIAL — Implemented but incomplete,discovery events/metrics exist; no immutable AuditLog publication
+S14-17,14,Marketplace administration UI,UI-ONLY — Screen exists but is disconnected,Marketplace tabs have no handlers; assignments/governance UI absent
+S14-18,14,Governance policy UI,PARTIAL — Implemented but incomplete,real create/publish APIs but narrow builder and tests
+S14-19,14,Analytics UI and API,PARTIAL — Implemented but incomplete,real endpoints; reduced metrics/charts/filters and N+1/full scans
+S14-20,14,Low-confidence review UI,UI-ONLY — Screen exists but is disconnected,discovery displays outcome but no review/clarification continuation
+S14-21,14,Discovery benchmark quality,PARTIAL — Implemented but incomplete,5 cases; leakage hard-coded zero; no top3/no-match/latency/cost thresholds
+S14-22,14,Deployment-report chat end-to-end,PARTIAL — Implemented but incomplete,planner bridge exists but no deployment-report tool/UI E2E and workflow regressions fail

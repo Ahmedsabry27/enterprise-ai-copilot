@@ -4,6 +4,7 @@ import sys
 
 from pythonjsonlogger import jsonlogger
 
+from app.security.sanitization import sanitize_text, sanitize_value
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
@@ -24,6 +25,12 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
         log_record["level"] = record.levelname
 
         log_record["logger"] = record.name
+
+        for key, value in tuple(log_record.items()):
+            log_record[key] = sanitize_value(value)
+
+    def formatException(self, exc_info):
+        return sanitize_text(super().formatException(exc_info))
 
 
 handler = logging.StreamHandler(sys.stdout)

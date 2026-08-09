@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, String
+from sqlalchemy import Boolean, DateTime, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -28,6 +28,13 @@ class Conversation(Base):
         nullable=False,
         index=True,
     )
+
+    tenant_id: Mapped[str] = mapped_column(
+        String(120), nullable=False, default="default", index=True
+    )
+    agent_uuid: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    agent_version: Mapped[int | None] = mapped_column(nullable=True)
+    is_pinned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,

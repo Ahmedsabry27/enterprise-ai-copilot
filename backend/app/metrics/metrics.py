@@ -1,5 +1,11 @@
 from prometheus_client import Counter, Gauge, Histogram
 
+ai_requests_total = Counter("ai_requests_total", "AI requests by provider and model", ["provider", "model", "status"])
+ai_errors_total = Counter("ai_errors_total", "AI errors by provider and model", ["provider", "model", "error_type"])
+ai_latency_seconds = Histogram("ai_latency_seconds", "AI latency by provider and model", ["provider", "model"])
+ai_tokens_total = Counter("ai_tokens_total", "AI tokens by provider and model", ["provider", "model", "token_type"])
+ai_cost_total = Counter("ai_cost_total", "Estimated AI cost by provider and model", ["provider", "model"])
+
 # ==================================================
 # Chat Metrics
 # ==================================================

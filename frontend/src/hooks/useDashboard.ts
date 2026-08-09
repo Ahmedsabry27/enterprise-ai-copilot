@@ -1,4 +1,5 @@
 import { useQueries } from "@tanstack/react-query";
+import type { QueryFunction, QueryKey } from "@tanstack/react-query";
 import {
   getAgentStatus,
   getDashboardMetrics,
@@ -7,7 +8,7 @@ import {
   getWorkflowDistribution,
 } from "../services/dashboard.service";
 
-const options = (queryKey, queryFn) => ({ queryKey, queryFn, staleTime: 20_000, refetchInterval: 30_000 });
+const options = (queryKey: QueryKey, queryFn: QueryFunction) => ({ queryKey, queryFn, staleTime: 20_000, refetchInterval: 30_000 });
 
 export function useDashboard() {
   const [metrics, trends, recent, agents, distribution] = useQueries({ queries: [

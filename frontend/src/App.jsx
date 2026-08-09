@@ -29,7 +29,7 @@ function App() {
 
         setLoading(false);
 
-      } catch (error) {
+      } catch {
 
         console.log(
           "User not authenticated. Redirecting..."

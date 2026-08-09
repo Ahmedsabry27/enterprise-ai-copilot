@@ -2,14 +2,109 @@ import json
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_current_user
 from app.database.dependencies import get_db
 from app.services.runtime_execution_service import runtime_execution_service
+from app.agents.application_service import AgentIdentity
 
 router = APIRouter(prefix="/api/runtime", tags=["Runtime"])
+
+
+class ContinueRequest(BaseModel):
+    continuation_id: UUID
+    values: dict = Field(default_factory=dict)
+
+
+@router.get("")
+def get_conversation_runtime(
+    conversation_id: UUID,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    from app.models.runtime_execution import RuntimeExecution
+    execution = db.query(RuntimeExecution).filter_by(
+        conversation_id=conversation_id, user_id=user["sub"]
+    ).order_by(RuntimeExecution.started_at.desc()).first()
+    if execution is None:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    return {
+        "execution_id": str(execution.id), "workflow_id": str(execution.workflow_id),
+        "status": execution.status, "agent": execution.agent,
+        "agent_id": execution.selected_agent_id, "provider": execution.provider_name,
+        "model": execution.model_name, "duration_ms": execution.duration_ms,
+        "token_usage": execution.token_usage, "estimated_cost": execution.estimated_cost,
+        "metadata": execution.runtime_metadata,
+        "started_at": execution.started_at, "finished_at": execution.completed_at,
+        "error": execution.error, "error_code": (execution.runtime_metadata or {}).get("error_code"),
+        "result_message": execution.result_message,
+    }
+
+
+@router.get("/{execution_id}")
+def get_runtime_execution(
+    execution_id: UUID,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    execution = runtime_execution_service.get_for_user(db, execution_id, user["sub"])
+    if execution is None:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    return {
+        "execution_id": str(execution.id), "workflow_id": str(execution.workflow_id),
+        "status": execution.status, "agent": execution.agent,
+        "agent_id": execution.selected_agent_id, "provider": execution.provider_name,
+        "model": execution.model_name, "duration_ms": execution.duration_ms,
+        "token_usage": execution.token_usage, "estimated_cost": execution.estimated_cost,
+        "metadata": execution.runtime_metadata,
+        "started_at": execution.started_at, "finished_at": execution.completed_at,
+        "error": execution.error, "error_code": (execution.runtime_metadata or {}).get("error_code"),
+        "result_message": execution.result_message,
+    }
+
+
+@router.post("/{execution_id}/continue")
+async def continue_runtime_execution(
+    execution_id: UUID,
+    payload: ContinueRequest,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    try:
+        execution = await runtime_execution_service.continue_execution(
+            db, execution_id=execution_id, user_id=user["sub"],
+            continuation_id=payload.continuation_id, values=payload.values, action="input",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if execution is None:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    return {"execution_id": str(execution.id), "workflow_id": str(execution.workflow_id), "status": execution.status}
+
+
+@router.post("/{execution_id}/approve")
+async def approve_runtime_execution(execution_id: UUID, payload: ContinueRequest, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+    try:
+        execution = await runtime_execution_service.continue_execution(db, execution_id=execution_id, user_id=user["sub"], continuation_id=payload.continuation_id, values=payload.values, action="approve", resume_identity=AgentIdentity.from_claims(user))
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if execution is None:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    return {"execution_id": str(execution.id), "workflow_id": str(execution.workflow_id), "status": execution.status}
+
+
+@router.post("/{execution_id}/deny")
+async def deny_runtime_execution(execution_id: UUID, payload: ContinueRequest, db: Session = Depends(get_db), user: dict = Depends(get_current_user)):
+    try:
+        execution = await runtime_execution_service.continue_execution(db, execution_id=execution_id, user_id=user["sub"], continuation_id=payload.continuation_id, values=payload.values, action="deny", resume_identity=AgentIdentity.from_claims(user))
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if execution is None:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    return {"execution_id": str(execution.id), "status": execution.status}
 
 
 @router.post("/cancel/{execution_id}")

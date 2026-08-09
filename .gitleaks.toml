@@ -1,0 +1,9 @@
+title = "Enterprise AI Copilot secret scanning"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Synthetic redaction-test values"
+paths = ['''backend/tests/test_secret_redaction.py''']
+regexes = ['''example_password''']

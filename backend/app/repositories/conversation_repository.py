@@ -13,7 +13,6 @@ from app.models.conversation import Conversation
 
 
 class ConversationRepository:
-
     # --------------------------------------------------
     # Create
     # --------------------------------------------------
@@ -23,15 +22,16 @@ class ConversationRepository:
         db: Session,
         user_id: str,
         title: str,
+        tenant_id: str = "default",
     ) -> Conversation:
 
         start = time.perf_counter()
 
         try:
-
             conversation = Conversation(
                 title=title,
                 user_id=user_id,
+                tenant_id=tenant_id,
             )
 
             db.add(conversation)
@@ -47,9 +47,7 @@ class ConversationRepository:
 
         finally:
             db_queries_total.inc()
-            db_query_latency_seconds.observe(
-                time.perf_counter() - start
-            )
+            db_query_latency_seconds.observe(time.perf_counter() - start)
 
     # --------------------------------------------------
     # Read
@@ -64,15 +62,10 @@ class ConversationRepository:
         start = time.perf_counter()
 
         try:
-
             return (
                 db.query(Conversation)
-                .filter(
-                    Conversation.user_id == user_id
-                )
-                .order_by(
-                    Conversation.updated_at.desc()
-                )
+                .filter(Conversation.user_id == user_id)
+                .order_by(Conversation.updated_at.desc())
                 .all()
             )
 
@@ -82,9 +75,7 @@ class ConversationRepository:
 
         finally:
             db_queries_total.inc()
-            db_query_latency_seconds.observe(
-                time.perf_counter() - start
-            )
+            db_query_latency_seconds.observe(time.perf_counter() - start)
 
     def get_by_id(
         self,
@@ -96,7 +87,6 @@ class ConversationRepository:
         start = time.perf_counter()
 
         try:
-
             return (
                 db.query(Conversation)
                 .filter(
@@ -112,9 +102,7 @@ class ConversationRepository:
 
         finally:
             db_queries_total.inc()
-            db_query_latency_seconds.observe(
-                time.perf_counter() - start
-            )
+            db_query_latency_seconds.observe(time.perf_counter() - start)
 
     # --------------------------------------------------
     # Update Title
@@ -130,7 +118,6 @@ class ConversationRepository:
         start = time.perf_counter()
 
         try:
-
             conversation.title = title
             conversation.updated_at = datetime.utcnow()
 
@@ -146,9 +133,17 @@ class ConversationRepository:
 
         finally:
             db_queries_total.inc()
-            db_query_latency_seconds.observe(
-                time.perf_counter() - start
-            )
+            db_query_latency_seconds.observe(time.perf_counter() - start)
+
+    def update(self, db: Session, conversation: Conversation, *, title: str | None = None, is_pinned: bool | None = None) -> Conversation:
+        if title is not None:
+            conversation.title = title.strip()[:255] or "New Conversation"
+        if is_pinned is not None:
+            conversation.is_pinned = is_pinned
+        conversation.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(conversation)
+        return conversation
 
     # --------------------------------------------------
     # Touch Conversation
@@ -163,7 +158,6 @@ class ConversationRepository:
         start = time.perf_counter()
 
         try:
-
             conversation.updated_at = datetime.utcnow()
 
             db.commit()
@@ -178,9 +172,7 @@ class ConversationRepository:
 
         finally:
             db_queries_total.inc()
-            db_query_latency_seconds.observe(
-                time.perf_counter() - start
-            )
+            db_query_latency_seconds.observe(time.perf_counter() - start)
 
     # --------------------------------------------------
     # Delete
@@ -195,7 +187,6 @@ class ConversationRepository:
         start = time.perf_counter()
 
         try:
-
             db.delete(conversation)
             db.commit()
 
@@ -208,9 +199,7 @@ class ConversationRepository:
 
         finally:
             db_queries_total.inc()
-            db_query_latency_seconds.observe(
-                time.perf_counter() - start
-            )
+            db_query_latency_seconds.observe(time.perf_counter() - start)
 
 
 conversation_repository = ConversationRepository()

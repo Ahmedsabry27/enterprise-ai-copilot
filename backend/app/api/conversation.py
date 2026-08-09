@@ -31,6 +31,7 @@ def create_conversation(
         db=db,
         user_id=user["sub"],
         title=request.title,
+        tenant_id=user.get("custom:tenant_id", "default"),
     )
 
 
@@ -88,11 +89,12 @@ def update_conversation(
     db: Session = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
-    conversation = conversation_service.update_conversation_title(
+    conversation = conversation_service.update_conversation(
         db=db,
         conversation_id=conversation_id,
         user_id=user["sub"],
         title=request.title,
+        is_pinned=request.is_pinned,
     )
 
     if conversation is None:

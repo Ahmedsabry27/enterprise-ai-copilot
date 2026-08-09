@@ -10,6 +10,7 @@ export default function ChatInput({
   onSend,
   onStop,
   loading,
+  disabled = false,
 }) {
 
 
@@ -53,12 +54,13 @@ export default function ChatInput({
 
     <div
       className="
-        fixed
-        bottom-8
-        left-1/2
+        relative
+        shrink-0
         z-50
-        w-[65%]
-        -translate-x-1/2
+        mx-auto
+        mb-4
+        w-[calc(100%-2rem)]
+        max-w-4xl
       "
     >
 
@@ -97,7 +99,8 @@ export default function ChatInput({
 
           value={message}
 
-          disabled={loading}
+          disabled={loading || disabled}
+          aria-label="Message Enterprise AI Copilot"
 
           onChange={(e)=>
             setMessage(e.target.value)
@@ -105,9 +108,7 @@ export default function ChatInput({
 
           onKeyDown={handleKeyDown}
 
-          placeholder="
-            Ask Enterprise AI Copilot...
-          "
+          placeholder={disabled ? "Complete the required runtime interaction above…" : "Ask Enterprise AI Copilot…"}
 
           className="
             flex-1
@@ -145,6 +146,7 @@ export default function ChatInput({
             <button
 
               onClick={onStop}
+              aria-label="Cancel runtime execution"
 
               className="
                 flex
@@ -185,9 +187,10 @@ export default function ChatInput({
 
             <button
 
-              disabled={!message.trim()}
+              disabled={disabled || !message.trim()}
 
               onClick={send}
+              aria-label="Send message"
 
 
               className="

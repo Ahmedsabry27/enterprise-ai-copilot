@@ -1,0 +1,22 @@
+[
+ {
+  "RuleID": "openai-api-key",
+  "Description": "Found an OpenAI API Key, posing a risk of unauthorized access to AI services and data manipulation.",
+  "StartLine": 1,
+  "EndLine": 1,
+  "StartColumn": 16,
+  "EndColumn": 179,
+  "Match": "REDACTED",
+  "Secret": "REDACTED",
+  "File": "backend/.env",
+  "SymlinkFile": "",
+  "Commit": "",
+  "Entropy": 5.6947618,
+  "Author": "",
+  "Email": "",
+  "Date": "",
+  "Message": "",
+  "Tags": [],
+  "Fingerprint": "backend/.env:openai-api-key:1"
+ }
+]

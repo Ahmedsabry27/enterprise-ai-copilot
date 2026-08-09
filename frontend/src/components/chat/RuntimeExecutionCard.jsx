@@ -54,6 +54,7 @@ export default function RuntimeExecutionCard({ metadata = {} }) {
                   <span className="text-[10px] uppercase tracking-wide text-slate-400">{step.status}</span>
                 </div>
                 <p className="mt-1 text-sm text-slate-400">{step.description}</p>
+                {(step.intent||step.extracted_parameters)&&<details className="mt-2 text-xs text-slate-400"><summary className="cursor-pointer text-violet-300">Structured decision</summary><div className="mt-2 space-y-1 rounded-lg bg-black/20 p-2">{step.intent?.intent&&<p>Intent: {step.intent.intent}</p>}{Object.entries(step.extracted_parameters||{}).map(([key,item])=><p key={key}>{key.replaceAll("_"," ")}: {String(item.value)} <span className="text-slate-600">({item.source})</span></p>)}{step.missing_parameters?.length>0&&<p>Missing: {step.missing_parameters.join(", ")}</p>}{step.required_capabilities?.length>0&&<p>Capabilities: {step.required_capabilities.join(", ")}</p>}</div></details>}
                 {step.timestamp && <p className="mt-2 text-[11px] text-slate-500">{new Date(step.timestamp).toLocaleTimeString()}</p>}
               </div>
             </div>
@@ -64,10 +65,12 @@ export default function RuntimeExecutionCard({ metadata = {} }) {
       {(metadata.agent || metadata.duration_ms != null || metadata.workflow_id) && (
         <div className="mt-4 grid gap-3 border-t border-white/10 pt-4 text-sm sm:grid-cols-3">
           <div className="rounded-xl bg-black/10 p-3"><p className="text-xs text-slate-500">Agent</p><p className="mt-1 truncate text-slate-200">{metadata.agent || "Selecting agent…"}</p></div>
-          <div className="rounded-xl bg-black/10 p-3"><p className="text-xs text-slate-500">Duration</p><p className="mt-1 text-slate-200">{metadata.duration_ms == null ? "In progress" : `${Math.round(metadata.duration_ms)} ms`}</p></div>
+          <div className="rounded-xl bg-black/10 p-3"><p className="text-xs text-slate-500">Duration</p><p className="mt-1 text-slate-200">{metadata.duration_ms == null ? (["FAILED","COMPLETED","CANCELLED","TIMED_OUT"].includes(metadata.status)?"Unavailable":"In progress") : `${Math.max(1,Math.round(metadata.duration_ms))} ms`}</p></div>
           <div className="rounded-xl bg-black/10 p-3"><p className="text-xs text-slate-500">Workflow ID</p><p className="mt-1 truncate text-slate-200" title={metadata.workflow_id}>{metadata.workflow_id}</p></div>
         </div>
       )}
+      {metadata.agent && <div className="mt-4 rounded-2xl border border-violet-400/20 bg-violet-500/10 p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-wide text-violet-300">Selected agent</p><p className="mt-1 font-semibold">{metadata.agent}</p><p className="mt-1 text-xs text-slate-400">{metadata.provider || "Configured provider"} · {metadata.model || "Published model"}</p></div>{metadata.confidence!=null&&<span className="rounded-full bg-emerald-400/10 px-3 py-1 text-xs text-emerald-300">{Math.round(metadata.confidence*100)}% match</span>}</div>{metadata.candidates?.length>1&&<details className="mt-3 text-sm"><summary className="cursor-pointer text-slate-300">Other candidates ({metadata.candidates.length-1})</summary><div className="mt-2 space-y-2">{metadata.candidates.slice(1).map(candidate=><div key={candidate.agent_id} className="flex justify-between rounded-lg bg-black/10 p-2"><span>{candidate.name}<small className="ml-2 text-slate-500">{candidate.reason}</small></span><span>{Math.round(candidate.confidence*100)}%</span></div>)}</div></details>}</div>}
+      {metadata.status==="FAILED"&&<div className="mt-4 rounded-xl border border-rose-400/20 bg-rose-400/10 p-3 text-sm text-rose-200"><p>{metadata.error||"The runtime failed safely."}</p><p className="mt-1 text-xs text-slate-500">Support reference: {metadata.execution_id}</p></div>}
     </div>
   );
 }

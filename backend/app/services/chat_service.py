@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import logging
+import time
 from collections.abc import Generator
 from uuid import UUID
 
@@ -10,6 +13,7 @@ from app.ai.models import (
     AIResponse,
     AIStreamEvent,
 )
+from app.core.config import settings
 from app.metrics.metrics import (
     chat_errors_total,
     chat_requests_total,
@@ -25,16 +29,18 @@ class ChatService:
     Provider-agnostic chat orchestration service.
 
     Responsibilities:
-
     - Validate conversation ownership
     - Persist user messages
     - Build conversation history
-    - Delegate inference to the configured AI provider
+    - Resolve the requested AI provider and model
+    - Delegate synchronous or streaming inference
     - Persist assistant responses
     """
 
     def __init__(self) -> None:
-        self.provider = AIProviderFactory.get_provider()
+        # The provider is intentionally not initialized here.
+        # It is resolved independently for every request so OpenAI
+        # and Amazon Bedrock can operate side by side.
         self.builder = ConversationBuilder()
 
     # --------------------------------------------------
@@ -47,7 +53,6 @@ class ChatService:
         conversation_id: UUID,
         user_id: str,
     ) -> None:
-
         conversation = conversation_service.get_conversation(
             db=db,
             conversation_id=conversation_id,
@@ -69,7 +74,6 @@ class ChatService:
         conversation_id: UUID,
         user_id: str,
     ):
-
         history = conversation_service.get_messages(
             db=db,
             conversation_id=conversation_id,
@@ -85,7 +89,6 @@ class ChatService:
         user_id: str,
         message: str,
     ) -> None:
-
         conversation_service.save_user_message(
             db=db,
             conversation_id=conversation_id,
@@ -105,7 +108,6 @@ class ChatService:
         user_id: str,
         response: AIResponse,
     ) -> None:
-
         conversation_service.save_assistant_message(
             db=db,
             conversation_id=conversation_id,
@@ -118,6 +120,34 @@ class ChatService:
             conversation_id=conversation_id,
             user_id=user_id,
         )
+
+    @staticmethod
+    def _resolve_provider_name(
+        provider_name: str | None,
+    ) -> str:
+        return (
+            provider_name
+            or settings.AI_PROVIDER
+        ).strip().lower()
+
+    @staticmethod
+    def _resolve_model(
+        provider_name: str,
+        model: str | None,
+    ) -> str:
+        if model and model.strip():
+            return model.strip()
+
+        if provider_name == "bedrock":
+            return settings.BEDROCK_MODEL_ID
+
+        if provider_name == "openai":
+            return settings.OPENAI_MODEL
+
+        raise ValueError(
+            f"Unsupported AI provider: {provider_name}"
+        )
+
     # --------------------------------------------------
     # Synchronous Chat
     # --------------------------------------------------
@@ -128,26 +158,24 @@ class ChatService:
         user_id: str,
         message: str,
         conversation_id: UUID | None = None,
+        provider_name: str | None = None,
+        model: str | None = None,
+        persist_user: bool = True,
     ) -> AIResponse:
         """
         Process a synchronous chat request.
 
-        Flow:
-
-            Validate Conversation
-                    ↓
-             Save User Message
-                    ↓
-            Load Conversation History
-                    ↓
-          Build AI Conversation Messages
-                    ↓
-              Invoke AI Provider
-                    ↓
-          Save Assistant Response
-                    ↓
-              Return AIResponse
+        Provider and model are resolved per request. When they are omitted,
+        application defaults from Settings are used.
         """
+
+        resolved_provider = self._resolve_provider_name(
+            provider_name
+        )
+        resolved_model = self._resolve_model(
+            provider_name=resolved_provider,
+            model=model,
+        )
 
         logger.info(
             "chat_request_started",
@@ -158,6 +186,8 @@ class ChatService:
                     if conversation_id
                     else None
                 ),
+                "provider": resolved_provider,
+                "model": resolved_model,
             },
         )
 
@@ -165,10 +195,6 @@ class ChatService:
         messages_processed_total.inc()
 
         try:
-
-            # ------------------------------------------
-            # Validate conversation
-            # ------------------------------------------
             if conversation_id is None:
                 raise ValueError(
                     "conversation_id is required."
@@ -180,35 +206,29 @@ class ChatService:
                 user_id=user_id,
             )
 
-            # ------------------------------------------
-            # Save user message
-            # ------------------------------------------
-            self._save_user_message(
-                db=db,
-                conversation_id=conversation_id,
-                user_id=user_id,
-                message=message,
-            )
+            if persist_user:
+                self._save_user_message(
+                    db=db,
+                    conversation_id=conversation_id,
+                    user_id=user_id,
+                    message=message,
+                )
 
-            # ------------------------------------------
-            # Build conversation
-            # ------------------------------------------
             conversation = self._load_conversation(
                 db=db,
                 conversation_id=conversation_id,
                 user_id=user_id,
             )
 
-            # ------------------------------------------
-            # Generate AI response
-            # ------------------------------------------
-            response = self.provider.ask(
+            provider = AIProviderFactory.get_provider(
+                provider_name=resolved_provider,
+                model=resolved_model,
+            )
+
+            response = provider.ask(
                 messages=conversation,
             )
 
-            # ------------------------------------------
-            # Save assistant response
-            # ------------------------------------------
             self._save_assistant_message(
                 db=db,
                 conversation_id=conversation_id,
@@ -221,6 +241,7 @@ class ChatService:
                 extra={
                     "user_id": user_id,
                     "conversation_id": str(conversation_id),
+                    "provider": resolved_provider,
                     "model": response.model,
                     "latency_seconds": round(
                         response.latency_seconds,
@@ -232,7 +253,6 @@ class ChatService:
             return response
 
         except Exception:
-
             chat_errors_total.inc()
 
             logger.exception(
@@ -244,10 +264,13 @@ class ChatService:
                         if conversation_id
                         else None
                     ),
+                    "provider": resolved_provider,
+                    "model": resolved_model,
                 },
             )
 
             raise
+
     # --------------------------------------------------
     # Streaming Chat
     # --------------------------------------------------
@@ -258,10 +281,23 @@ class ChatService:
         user_id: str,
         message: str,
         conversation_id: UUID | None = None,
+        provider_name: str | None = None,
+        model: str | None = None,
     ) -> Generator[AIStreamEvent, None, None]:
         """
-        Stream a response from the configured AI provider.
+        Stream a response from the selected AI provider.
+
+        Provider and model are resolved per request. The complete assistant
+        response is persisted after streaming finishes.
         """
+
+        resolved_provider = self._resolve_provider_name(
+            provider_name
+        )
+        resolved_model = self._resolve_model(
+            provider_name=resolved_provider,
+            model=model,
+        )
 
         logger.info(
             "stream_request_started",
@@ -272,6 +308,8 @@ class ChatService:
                     if conversation_id
                     else None
                 ),
+                "provider": resolved_provider,
+                "model": resolved_model,
             },
         )
 
@@ -279,15 +317,12 @@ class ChatService:
         messages_processed_total.inc()
 
         assistant_text = ""
-        final_response_id = None
-        final_model = ""
+        final_response_id: str | None = None
+        final_model = resolved_model
         final_usage = None
+        start = time.perf_counter()
 
         try:
-
-            # ------------------------------------------
-            # Validate conversation
-            # ------------------------------------------
             if conversation_id is None:
                 raise ValueError(
                     "conversation_id is required."
@@ -299,9 +334,6 @@ class ChatService:
                 user_id=user_id,
             )
 
-            # ------------------------------------------
-            # Save user message
-            # ------------------------------------------
             self._save_user_message(
                 db=db,
                 conversation_id=conversation_id,
@@ -309,22 +341,20 @@ class ChatService:
                 message=message,
             )
 
-            # ------------------------------------------
-            # Build conversation
-            # ------------------------------------------
             conversation = self._load_conversation(
                 db=db,
                 conversation_id=conversation_id,
                 user_id=user_id,
             )
 
-            # ------------------------------------------
-            # Stream AI response
-            # ------------------------------------------
-            for event in self.provider.stream(
+            provider = AIProviderFactory.get_provider(
+                provider_name=resolved_provider,
+                model=resolved_model,
+            )
+
+            for event in provider.stream(
                 messages=conversation,
             ):
-
                 if event.text:
                     assistant_text += event.text
 
@@ -339,13 +369,13 @@ class ChatService:
 
                 yield event
 
-            # ------------------------------------------
-            # Save assistant message
-            # ------------------------------------------
+            latency = time.perf_counter() - start
+
             response = AIResponse(
                 text=assistant_text,
                 response_id=final_response_id,
                 model=final_model,
+                latency_seconds=latency,
                 usage=final_usage,
             )
 
@@ -361,12 +391,13 @@ class ChatService:
                 extra={
                     "user_id": user_id,
                     "conversation_id": str(conversation_id),
+                    "provider": resolved_provider,
                     "model": final_model,
+                    "latency_seconds": round(latency, 3),
                 },
             )
 
         except Exception:
-
             chat_errors_total.inc()
 
             logger.exception(
@@ -378,10 +409,14 @@ class ChatService:
                         if conversation_id
                         else None
                     ),
+                    "provider": resolved_provider,
+                    "model": resolved_model,
                 },
             )
 
             raise
+
+
 # --------------------------------------------------
 # Singleton
 # --------------------------------------------------

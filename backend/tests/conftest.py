@@ -1,13 +1,16 @@
-import pytest
+import os
 
+os.environ["DATABASE_URL"] = "sqlite+pysqlite:///:memory:"
+
+import pytest
+from app.agents.registry import AgentRegistry
+from app.database import models as database_models  # noqa: F401
+from app.database.base import Base
+from app.database.session import engine as application_engine
+from app.runtime.event_bus import EventBus
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-
-from app.database.base import Base
-
-from app.runtime.event_bus import EventBus
-from app.agents.registry import AgentRegistry
-
+from sqlalchemy.pool import StaticPool
 
 # --------------------------------------------------
 # Existing Runtime Fixtures
@@ -22,6 +25,17 @@ def event_bus():
 @pytest.fixture
 def agent_registry():
     return AgentRegistry()
+
+
+@pytest.fixture(autouse=True)
+def application_database_schema():
+    """Keep application-level API tests isolated from production infrastructure."""
+
+    Base.metadata.create_all(bind=application_engine)
+    try:
+        yield
+    finally:
+        Base.metadata.drop_all(bind=application_engine)
 
 
 
@@ -42,6 +56,7 @@ engine = create_engine(
     connect_args={
         "check_same_thread": False
     },
+    poolclass=StaticPool,
 )
 
 

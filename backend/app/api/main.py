@@ -56,6 +56,12 @@ app.include_router(
     workflows.router
 )
 
+# Preserve the versionless route while supporting the documented legacy API path.
+app.include_router(
+    workflows.router,
+    prefix="/api",
+)
+
 
 app.include_router(
     dashboard.router
