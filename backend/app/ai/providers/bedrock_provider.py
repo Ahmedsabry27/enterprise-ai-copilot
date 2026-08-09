@@ -22,7 +22,7 @@ from app.ai.models import (
     AIStreamEvent,
     AIUsage,
 )
-from app.core.bedrock_client import client
+from app.core.bedrock_client import get_bedrock_client
 from app.core.config import settings
 from app.metrics.metrics import (
     ai_errors_total,
@@ -84,7 +84,7 @@ class BedrockProvider(AIProvider):
                 conversation=conversation,
             )
 
-            response = client.converse(**request)
+            response = get_bedrock_client().converse(**request)
 
             latency = time.perf_counter() - start
 
@@ -172,7 +172,7 @@ class BedrockProvider(AIProvider):
                 conversation=conversation,
             )
 
-            response = client.converse_stream(**request)
+            response = get_bedrock_client().converse_stream(**request)
 
             response_metadata = response.get(
                 "ResponseMetadata",
@@ -298,7 +298,7 @@ class BedrockProvider(AIProvider):
 
             raise AIUnknownError(str(ex)) from ex
 
-        except AIProviderError:
+        except AIProviderError as ex:
             ai_errors_total.labels("bedrock", self.model, type(ex).__name__).inc()
             raise
 

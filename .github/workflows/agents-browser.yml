@@ -27,7 +27,7 @@ jobs:
           --health-retries 5
     env:
       APP_ENV: e2e
-      AI_PROVIDER: fake-e2e-provider
+      AI_PROVIDER: openai
       DATABASE_URL: postgresql+psycopg://postgres:postgres-e2e-only@127.0.0.1:5432/enterprise_ai_copilot_e2e
       CORS_ALLOWED_ORIGINS: http://127.0.0.1:4174
       E2E_AUTH_ENABLED: "true"
