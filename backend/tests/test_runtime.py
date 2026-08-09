@@ -59,7 +59,7 @@ async def test_runtime_executes_workflow() -> None:
 
     task_result = results[0]
 
-    assert task_result["task"] == "Echo Goal"
+    assert task_result["task"] == "Generate governed response"
     assert task_result["agent"] == "default-agent"
     assert task_result["success"] is True
 

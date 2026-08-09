@@ -23,7 +23,7 @@ from app.ai.models import (
     AIUsage,
 )
 from app.core.config import settings
-from app.core.openai_client import client
+from app.core.openai_client import get_openai_client
 from app.metrics.metrics import (
     completion_tokens_total,
     openai_errors_total,
@@ -62,7 +62,7 @@ class OpenAIProvider(AIProvider):
         start = time.perf_counter()
 
         try:
-            response = client.responses.create(
+            response = get_openai_client().responses.create(
                 model=self.model,
                 input=OpenAIAdapter.to_input(messages),
             )
@@ -132,7 +132,7 @@ class OpenAIProvider(AIProvider):
         try:
             openai_requests_total.inc()
 
-            stream = client.responses.create(
+            stream = get_openai_client().responses.create(
                 model=self.model,
                 input=OpenAIAdapter.to_input(messages),
                 stream=True,
