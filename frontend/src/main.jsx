@@ -13,9 +13,11 @@ import theme from "./theme";
 
 import QueryProvider from "./providers/QueryProvider";
 
+const rootElement = document.getElementById("root");
+rootElement.dataset.buildId = import.meta.env.VITE_BUILD_ID || "local";
 
 ReactDOM.createRoot(
-  document.getElementById("root")
+  rootElement
 ).render(
 
   <ThemeProvider theme={theme}>
