@@ -50,8 +50,10 @@ def test_tampering_and_overlong_credentials_are_rejected(monkeypatch):
 def test_isolated_ci_can_extend_token_lifetime(monkeypatch):
     configure(monkeypatch)
     monkeypatch.setenv("E2E_AUTH_MAX_LIFETIME_SECONDS", "3600")
+    issued_at = int(time.time())
     token = issue_e2e_token(
         {"sub": "admin", "custom:tenant_id": "e2e-tenant"},
         lifetime_seconds=3600,
     )
+    monkeypatch.setattr(time, "time", lambda: issued_at + 120)
     assert verify_e2e_token(token)["sub"] == "admin"

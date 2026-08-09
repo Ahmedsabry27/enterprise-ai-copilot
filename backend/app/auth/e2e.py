@@ -59,9 +59,12 @@ def verify_e2e_token(token: str) -> dict[str, Any]:
     if claims.get("iss") != "enterprise-ai-copilot-e2e":
         raise E2EAuthenticationError("Invalid E2E credential issuer")
     now = int(time.time())
-    if not now - 30 <= int(claims.get("iat", 0)) <= now + 30:
+    max_lifetime = _max_lifetime_seconds()
+    issued_at = int(claims.get("iat", 0))
+    expires_at = int(claims.get("exp", 0))
+    if not now - max_lifetime <= issued_at <= now + 30:
         raise E2EAuthenticationError("Invalid E2E credential issue time")
-    if not now < int(claims.get("exp", 0)) <= now + _max_lifetime_seconds():
+    if not now < expires_at <= issued_at + max_lifetime:
         raise E2EAuthenticationError("Expired or overlong E2E credential")
     if not claims.get("sub") or not claims.get("custom:tenant_id"):
         raise E2EAuthenticationError("Incomplete E2E identity")
