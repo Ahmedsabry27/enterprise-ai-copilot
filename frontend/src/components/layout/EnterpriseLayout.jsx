@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { Outlet } from "react-router-dom";
+import {
+  Outlet,
+  useLocation,
+} from "react-router-dom";
 
 import {
   Search,
@@ -13,18 +16,24 @@ export default function EnterpriseLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] =
     useState(false);
 
+  const location = useLocation();
+
+  // Chat needs its own internal scrolling.
+  // Other pages can continue using normal page scrolling.
+  const isChatPage =
+    location.pathname === "/chat" ||
+    location.pathname.startsWith("/chat/");
+
   return (
     <div
       className="
         flex
         h-screen
+        min-h-0
         w-full
         overflow-hidden
-        bg-gradient-to-br
-        from-[#071426]
-        via-[#10254d]
-        to-[#06111f]
-        text-white
+        bg-[#061426]
+        text-slate-100
       "
     >
       {/* ==================================================
@@ -34,10 +43,10 @@ export default function EnterpriseLayout() {
       <div
         className="
           hidden
-          lg:flex
           h-screen
           shrink-0
           overflow-hidden
+          lg:flex
         "
       >
         <Sidebar
@@ -53,11 +62,12 @@ export default function EnterpriseLayout() {
       <div
         className="
           flex
-          flex-1
-          min-w-0
           min-h-0
+          min-w-0
+          flex-1
           flex-col
           overflow-hidden
+          bg-[#0a1b33]
           transition-all
           duration-300
           ease-in-out
@@ -69,18 +79,18 @@ export default function EnterpriseLayout() {
 
         <header
           className="
+            flex
             h-20
             shrink-0
-            flex
             items-center
             justify-between
             border-b
             border-white/10
-            bg-white/5
+            bg-[#0d203b]/95
             px-3
+            backdrop-blur-xl
             sm:px-6
             lg:px-8
-            backdrop-blur-xl
           "
         >
           {/* Search */}
@@ -88,7 +98,6 @@ export default function EnterpriseLayout() {
           <div
             className="
               hidden
-              sm:flex
               items-center
               gap-3
               rounded-xl
@@ -97,6 +106,7 @@ export default function EnterpriseLayout() {
               bg-white/5
               px-4
               py-3
+              sm:flex
               sm:w-[min(420px,55vw)]
             "
           >
@@ -116,6 +126,7 @@ export default function EnterpriseLayout() {
                 min-w-0
                 bg-transparent
                 text-sm
+                text-slate-200
                 outline-none
                 placeholder:text-slate-500
               "
@@ -138,7 +149,6 @@ export default function EnterpriseLayout() {
             <div
               className="
                 hidden
-                md:flex
                 items-center
                 gap-2
                 rounded-full
@@ -149,15 +159,16 @@ export default function EnterpriseLayout() {
                 py-2
                 text-sm
                 text-emerald-300
+                md:flex
               "
             >
               <span
                 className="
                   h-2
                   w-2
+                  animate-pulse
                   rounded-full
                   bg-emerald-400
-                  animate-pulse
                 "
               />
 
@@ -208,13 +219,7 @@ export default function EnterpriseLayout() {
 
             {/* Profile */}
 
-            <div
-              className="
-                flex
-                items-center
-                gap-3
-              "
-            >
+            <div className="flex items-center gap-3">
               <div
                 className="
                   flex
@@ -227,6 +232,7 @@ export default function EnterpriseLayout() {
                   from-blue-500
                   to-purple-600
                   font-semibold
+                  text-white
                   shadow-lg
                 "
               >
@@ -241,20 +247,25 @@ export default function EnterpriseLayout() {
         ================================================== */}
 
         <main
-          className="
+          className={`
             min-h-0
             min-w-0
             flex-1
-            overflow-y-auto
             overflow-x-hidden
+            bg-[#081a30]
             p-4
             sm:p-6
             lg:p-8
-          "
+
+            ${
+              isChatPage
+                ? "overflow-hidden"
+                : "overflow-y-auto"
+            }
+          `}
         >
           <div
-            className="
-              min-h-full
+            className={`
               min-w-0
               overflow-hidden
               rounded-3xl
@@ -263,7 +274,13 @@ export default function EnterpriseLayout() {
               bg-[#07182f]
               shadow-2xl
               shadow-black/20
-            "
+
+              ${
+                isChatPage
+                  ? "h-full min-h-0"
+                  : "min-h-full"
+              }
+            `}
           >
             <Outlet />
           </div>
