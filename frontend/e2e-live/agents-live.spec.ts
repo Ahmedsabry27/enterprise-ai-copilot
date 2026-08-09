@@ -28,7 +28,7 @@ test("real backend persists and filters the seeded Agent", async ({ page }) => {
   await page.goto("/agents");
   await expect(page.getByRole("heading", { name: "Agents" })).toBeVisible();
   await expect(page.getByText("Live E2E Agent")).toBeVisible();
-  await page.getByRole("textbox", { name: /search/i }).fill("Live E2E Agent");
+  await page.getByRole("textbox", { name: "Search Agents", exact: true }).fill("Live E2E Agent");
   await expect(page.getByText("Live E2E Agent")).toBeVisible();
   expect(requests.some((url) => url.includes("search=Live+E2E+Agent") || url.includes("search=Live%20E2E%20Agent"))).toBeTruthy();
 
