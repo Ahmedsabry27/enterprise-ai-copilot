@@ -35,19 +35,25 @@ jobs:
       E2E_STATE_PATH: ${{ github.workspace }}/frontend/.e2e-state.json
       VITE_API_URL: http://127.0.0.1:8000
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: backend/requirements-dev.txt
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Validate E2E signing secret
-        run: test "${#E2E_AUTH_SECRET}" -ge 32
+      - name: Initialize ephemeral E2E signing secret
+        shell: bash
+        run: |
+          if (( ${#E2E_AUTH_SECRET} < 32 )); then
+            E2E_AUTH_SECRET="$(openssl rand -hex 32)"
+            echo "E2E_AUTH_SECRET=$E2E_AUTH_SECRET" >> "$GITHUB_ENV"
+          fi
+          echo "::add-mask::$E2E_AUTH_SECRET"
       - name: Install backend dependencies
         working-directory: backend
         run: pip install -r requirements-dev.txt
@@ -89,8 +95,8 @@ jobs:
         if: always()
         run: rm -f frontend/.e2e-state.json
       - name: Upload safe browser and accessibility artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
+        if: ${{ always() && hashFiles('frontend/artifacts/**') != '' }}
+        uses: actions/upload-artifact@v5
         with:
           name: agents-playwright-artifacts
           path: |
