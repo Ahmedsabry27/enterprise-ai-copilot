@@ -55,8 +55,21 @@ jobs:
             app/security/headers.py
           pytest -q tests
 
+      - name: Validate AWS OIDC deployment configuration
+        env:
+          AWS_DEPLOY_ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+        run: |
+          test -n "$AWS_DEPLOY_ROLE_ARN" || {
+            echo "::error::Missing repository secret AWS_DEPLOY_ROLE_ARN. Configure it with the IAM role trusted by this GitHub repository's OIDC provider."
+            exit 1
+          }
+          test -n "$AWS_REGION" || {
+            echo "::error::Missing repository secret AWS_REGION."
+            exit 1
+          }
+
       - name: Configure AWS credentials with GitHub OIDC
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
