@@ -18,6 +18,16 @@ export default function useChat(conversation) {
   const executionRef = useRef(null);
   const lastRequestRef=useRef(null);
 
+  function connectRuntime(assistantId, execution) {
+    runtimeRef.current?.();
+    executionRef.current = execution.execution_id;
+    runtimeRef.current = subscribeRuntime(
+      execution.execution_id,
+      (event) => applyEvent(assistantId, execution, event),
+      (error) => failExecution(assistantId, error.message),
+    );
+  }
+
   function applyEvent(assistantId,execution,event){
     dispatchRuntime({type:"event",event});
     if(event.type==="required_input"||event.type==="approval_required"){
@@ -60,10 +70,9 @@ export default function useChat(conversation) {
       setLoading(true);
       const execution = await startExecution({ message: userMessage, conversation_id: conversationId, agent_id: options.agentId||null, provider:options.provider||null, model:options.model||null, workspace_id:options.workspace||null });
       setResponseId(execution.execution_id);
-      executionRef.current = execution.execution_id;
       setActiveExecution({...execution,agent_id:options.agentId||null,assistant_id:assistantId});
       dispatchRuntime({type:"started",executionId:execution.execution_id,workflowId:execution.workflow_id});
-      runtimeRef.current = subscribeRuntime(execution.execution_id,event=>applyEvent(assistantId,execution,event),(error)=>failExecution(assistantId,error.message));
+      connectRuntime(assistantId, execution);
     } catch (error) {
       console.error("Unable to start runtime execution", error);
       if (assistantId) {
@@ -90,17 +99,27 @@ export default function useChat(conversation) {
     setLoading(true);
     try{
       const next=await continueRuntime(activeExecution.execution_id,activeExecution.continuation.continuation_id,values);
-      setActiveExecution({...next,agent_id:activeExecution.agent_id,assistant_id:activeExecution.assistant_id,continuation:null});
+      const resumed={...next,agent_id:activeExecution.agent_id,assistant_id:activeExecution.assistant_id,continuation:null};
+      setActiveExecution(resumed);
       setMessages(current=>current.map(message=>message.id===activeExecution.assistant_id?{...message,text:next.result?.message||statusMessage(next.status),metadata:{...message.metadata,status:next.status.toUpperCase(),continuation:next.continuation}}:message));
+      dispatchRuntime({type:"started",executionId:next.execution_id,workflowId:next.workflow_id});
+      connectRuntime(activeExecution.assistant_id, resumed);
     }catch(error){setLoading(false);throw error;}
   }
 
   async function decideApproval(decision){
     const continuation=activeExecution?.continuation;if(!continuation)return;
     const fn=decision==="approve"?approveRuntime:denyRuntime;
-    await fn(activeExecution.execution_id,continuation.continuation_id);
-    setActiveExecution(current=>({...current,continuation:{...continuation,decision}}));
-    if(decision==="approve")setLoading(true);
+    const next=await fn(activeExecution.execution_id,continuation.continuation_id);
+    const resumed={...activeExecution,...next,continuation:null};
+    setActiveExecution(resumed);
+    if(decision==="approve"){
+      setLoading(true);
+      dispatchRuntime({type:"started",executionId:next.execution_id,workflowId:next.workflow_id||activeExecution.workflow_id});
+      connectRuntime(activeExecution.assistant_id, resumed);
+    }else{
+      setLoading(false);
+    }
   }
 
   function failExecution(assistantId, description) {
