@@ -2,7 +2,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Response, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from mangum import Mangum
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from sqlalchemy import text
@@ -51,6 +50,7 @@ from app.models.conversation import Conversation  # noqa: F401
 from app.models.message import Message  # noqa: F401
 from app.models.runtime_execution import RuntimeExecution  # noqa: F401
 from app.security.headers import SecurityHeadersMiddleware
+from app.security.trusted_hosts import HealthAwareTrustedHostMiddleware
 from app.tool_discovery.indexing import index_tools
 from app.tool_sdk.service import registry, sync_catalog
 
@@ -139,7 +139,10 @@ app.add_middleware(
 )
 
 if settings.trusted_hosts:
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts)
+    app.add_middleware(
+        HealthAwareTrustedHostMiddleware,
+        allowed_hosts=settings.trusted_hosts,
+    )
 
 
 # --------------------------------------------------
