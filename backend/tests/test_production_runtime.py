@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
+from sqlalchemy import create_engine, text
+
 from app.core.config import Settings
 from app.database.config import _secure_configured_url
 from app.database.migrations import require_current_schema
-from pydantic import ValidationError
-from sqlalchemy import create_engine, text
 
 
 def production_settings(**overrides):
