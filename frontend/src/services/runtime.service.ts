@@ -37,9 +37,56 @@ export function subscribeRuntime(
 ): RuntimeSubscription {
   const controller = new AbortController();
   const baseUrl = import.meta.env.VITE_API_URL || "";
+  let lastContinuationId: string | null = null;
+  let terminal = false;
 
   void (async () => {
-    let attempts=0;let terminal=false;
+    while (!controller.signal.aborted && !terminal) {
+      try {
+        const authoritative = await getRuntime(executionId);
+        const continuation = authoritative.continuation;
+        if (
+          continuation?.continuation_id &&
+          continuation.continuation_id !== lastContinuationId &&
+          (authoritative.status === "WAITING_FOR_INPUT" ||
+            authoritative.status === "WAITING_FOR_APPROVAL")
+        ) {
+          lastContinuationId = continuation.continuation_id;
+          callback({
+            ...continuation,
+            type:
+              authoritative.status === "WAITING_FOR_APPROVAL"
+                ? "approval_required"
+                : "required_input",
+            execution_id: executionId,
+            workflow_id: authoritative.workflow_id,
+            status: "waiting",
+            final: false,
+          } as RuntimeEvent);
+        } else if (["COMPLETED", "FAILED", "CANCELLED", "TIMED_OUT"].includes(authoritative.status)) {
+          terminal = true;
+          callback({
+            type: authoritative.status === "FAILED" ? "error" : "completed",
+            execution_id: executionId,
+            workflow_id: authoritative.workflow_id,
+            status: authoritative.status.toLowerCase(),
+            message: authoritative.result_message,
+            error: authoritative.error,
+            duration_ms: authoritative.duration_ms,
+            final: true,
+          } as RuntimeEvent);
+          controller.abort();
+          return;
+        }
+      } catch {
+        // The authenticated SSE path remains primary; polling is a resilience fallback.
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 2000));
+    }
+  })();
+
+  void (async () => {
+    let attempts=0;
     while(!controller.signal.aborted&&!terminal&&attempts<4){try {
       const token = await getAccessToken();
       const response = await fetch(`${baseUrl}/api/runtime/events/${executionId}`, {
