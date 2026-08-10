@@ -4,6 +4,13 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy.yml"
+
+concurrency:
+  group: deploy-backend-production
+  cancel-in-progress: false
 
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
@@ -298,7 +305,7 @@ jobs:
           service=$(aws ecs describe-services \
             --cluster $ECS_CLUSTER \
             --services $ECS_SERVICE \
-            --query 'services[0].{running:runningCount,desired:desiredCount,pending:pendingCount,rollout:deployments[0].rolloutState}' \
+            --query 'services[0].{running:runningCount,desired:desiredCount,pending:pendingCount,rollout:deployments[?status==`PRIMARY`] | [0].rolloutState}' \
             --output json)
           echo "$service"
           jq -e \
