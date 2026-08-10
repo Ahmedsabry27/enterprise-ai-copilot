@@ -72,5 +72,16 @@ describe("useChat runtime continuation", () => {
     expect(mocks.unsubscribe).toHaveBeenCalled();
     expect(mocks.subscribeRuntime).toHaveBeenCalledTimes(2);
     expect(mocks.subscribeRuntime.mock.calls[1][0]).toBe("execution-1");
+
+    const replayedEvent = mocks.subscribeRuntime.mock.calls[1][1];
+    act(() => replayedEvent({
+      type: "required_input",
+      continuation_id: "continuation-1",
+      fields: [{ name: "project_key", required: true }],
+      status: "waiting",
+    }));
+
+    expect(result.current.activeExecution.continuation).toBeNull();
+    expect(result.current.loading).toBe(true);
   });
 });

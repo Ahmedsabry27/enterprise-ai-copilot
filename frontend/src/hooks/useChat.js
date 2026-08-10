@@ -17,6 +17,7 @@ export default function useChat(conversation) {
   const runtimeRef = useRef(null);
   const executionRef = useRef(null);
   const lastRequestRef=useRef(null);
+  const consumedContinuationsRef = useRef(new Set());
 
   function connectRuntime(assistantId, execution) {
     runtimeRef.current?.();
@@ -29,6 +30,12 @@ export default function useChat(conversation) {
   }
 
   function applyEvent(assistantId,execution,event){
+    if (
+      (event.type === "required_input" || event.type === "approval_required") &&
+      consumedContinuationsRef.current.has(event.continuation_id)
+    ) {
+      return;
+    }
     dispatchRuntime({type:"event",event});
     if(event.type==="required_input"||event.type==="approval_required"){
       setActiveExecution(current=>({...current,...execution,assistant_id:assistantId,continuation:{kind:event.type==="required_input"?"input":"approval",continuation_id:event.continuation_id,fields:event.fields||[],...event}}));setLoading(false);
@@ -55,6 +62,7 @@ export default function useChat(conversation) {
     lastRequestRef.current={message:userMessage,options};
     try {
       runtimeRef.current?.();
+      consumedContinuationsRef.current.clear();
       const conversationId = await conversation.ensureConversation();
       const active = conversation.conversations.find((item) => item.id === conversationId);
       if (active?.title === "New Conversation") {
@@ -96,19 +104,39 @@ export default function useChat(conversation) {
 
   async function resumeAgentExecution(values){
     if(!activeExecution?.continuation)return;
+    const continuationId = activeExecution.continuation.continuation_id;
+    consumedContinuationsRef.current.add(continuationId);
     setLoading(true);
     try{
-      const next=await continueRuntime(activeExecution.execution_id,activeExecution.continuation.continuation_id,values);
+      const next=await continueRuntime(activeExecution.execution_id,continuationId,values);
       const resumed={...next,agent_id:activeExecution.agent_id,assistant_id:activeExecution.assistant_id,continuation:null};
       setActiveExecution(resumed);
       setMessages(current=>current.map(message=>message.id===activeExecution.assistant_id?{...message,text:next.result?.message||statusMessage(next.status),metadata:{...message.metadata,status:next.status.toUpperCase(),continuation:next.continuation}}:message));
       dispatchRuntime({type:"started",executionId:next.execution_id,workflowId:next.workflow_id});
       connectRuntime(activeExecution.assistant_id, resumed);
-    }catch(error){setLoading(false);throw error;}
+    }catch(error){
+      if(error?.response?.status===409){
+        const authoritative=await getRuntime(activeExecution.execution_id);
+        const reconciled={...activeExecution,...authoritative,continuation:null};
+        setActiveExecution(reconciled);
+        await reconcileRuntime(activeExecution.execution_id,activeExecution.assistant_id);
+        if(authoritative.status==="RUNNING"){
+          setLoading(true);
+          connectRuntime(activeExecution.assistant_id,reconciled);
+        }else{
+          setLoading(false);
+        }
+        return;
+      }
+      consumedContinuationsRef.current.delete(continuationId);
+      setLoading(false);
+      throw error;
+    }
   }
 
   async function decideApproval(decision){
     const continuation=activeExecution?.continuation;if(!continuation)return;
+    consumedContinuationsRef.current.add(continuation.continuation_id);
     const fn=decision==="approve"?approveRuntime:denyRuntime;
     const next=await fn(activeExecution.execution_id,continuation.continuation_id);
     const resumed={...activeExecution,...next,continuation:null};
@@ -146,7 +174,7 @@ export default function useChat(conversation) {
     setLoading(false);
   }
 
-  function clearChat() { setMessages([]); setResponseId(null); setLoading(false);dispatchRuntime({type:"reset"});setActiveExecution(null); }
+  function clearChat() { setMessages([]); setResponseId(null); setLoading(false);dispatchRuntime({type:"reset"});setActiveExecution(null);consumedContinuationsRef.current.clear(); }
   function retryExecution(){const request=lastRequestRef.current;if(request&&!loading)return handleStream(request.message,request.options);}
   async function restoreRuntime(conversationId,assistantId){
     const execution=await getConversationRuntime(conversationId);if(!execution)return;
