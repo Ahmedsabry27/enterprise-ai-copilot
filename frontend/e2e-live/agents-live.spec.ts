@@ -21,16 +21,20 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("real backend persists and filters the seeded Agent", async ({ page }) => {
-  const requests: string[] = [];
-  page.on("request", (request) => {
-    if (request.url().includes("/api/v1/agents")) requests.push(request.url());
-  });
   await page.goto("/agents");
   await expect(page.getByRole("heading", { name: "Agents" })).toBeVisible();
   await expect(page.getByText("Live E2E Agent")).toBeVisible();
+
+  const filteredRequest = page.waitForRequest((request) => {
+    const url = new URL(request.url());
+    return (
+      url.pathname === "/api/v1/agents" &&
+      url.searchParams.get("search") === "Live E2E Agent"
+    );
+  });
   await page.getByRole("textbox", { name: "Search Agents", exact: true }).fill("Live E2E Agent");
+  await filteredRequest;
   await expect(page.getByText("Live E2E Agent")).toBeVisible();
-  expect(requests.some((url) => url.includes("search=Live+E2E+Agent") || url.includes("search=Live%20E2E%20Agent"))).toBeTruthy();
 
   const response = await page.request.get(`${apiBase}/api/v1/agents/${state.agent_id}`, {
     headers: { Authorization: `Bearer ${state.token}` },
